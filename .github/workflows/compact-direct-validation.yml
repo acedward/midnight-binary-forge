@@ -1,0 +1,83 @@
+name: Compact 0.34 direct-upstream validation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/compact-direct-validation.yml'
+      - 'evidence/phase3/**'
+      - 'scripts/validate_compact_direct.py'
+      - 'tests/fixtures/compact/**'
+      - 'tests/test_compact_direct.py'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/compact-direct-validation.yml'
+      - 'evidence/phase3/**'
+      - 'scripts/validate_compact_direct.py'
+      - 'tests/fixtures/compact/**'
+      - 'tests/test_compact_direct.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compact-direct-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact evidence source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Validate immutable source and shared proof-cache pins
+        run: python3 scripts/validate_compact_direct.py sources
+      - name: Accept only the coordinated runtime set
+        run: python3 scripts/validate_compact_direct.py runtime-gate --runtime 0.19.0 --ledger-major 9
+      - name: Reject the current runtime-0.18 compiler-only migration
+        run: |
+          if python3 scripts/validate_compact_direct.py runtime-gate --runtime 0.18.0-rc.1 --ledger-major 9 >runtime.out 2>runtime.err; then
+            echo 'runtime-0.18 unexpectedly passed' >&2
+            exit 1
+          fi
+          test ! -s runtime.out
+          grep -F 'coordinated runtime 0.19.0/Ledger 9 migration' runtime.err
+
+  native-assets:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            os: linux
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            os: linux
+            arch: arm64
+          - runner: macos-15
+            os: macos
+            arch: arm64
+          - runner: macos-15-intel
+            os: macos
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact evidence source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Prove exact native runner identity
+        run: python3 scripts/check_runner_capability.py --runner-label '${{ matrix.runner }}' --expected-os '${{ matrix.os }}' --expected-arch '${{ matrix.arch }}' --require-tool file --min-free-gib 3
+      - name: Download, inspect, execute, and compile from the official asset
+        run: >-
+          python3 scripts/validate_compact_direct.py native
+          --os '${{ matrix.os }}'
+          --arch '${{ matrix.arch }}'
+          --work-dir '${{ runner.temp }}/compact-direct-${{ matrix.os }}-${{ matrix.arch }}'
+          --fixture tests/fixtures/compact/tiny.compact
