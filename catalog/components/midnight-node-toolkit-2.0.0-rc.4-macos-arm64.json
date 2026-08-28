@@ -13,7 +13,7 @@
     "lockedDependencies": true,
     "toolchain": "rustup-channel-1.95.0@sha256:821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9",
     "toolchainDigest": "821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9",
-    "buildFlags": ["cargo-auditable-0.7.5-asset-sha256:92720fff2be27492ca7b216510a27e88a835b526e9e94e46bc36b502ba17d8f0", "cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit --bin midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid", "no-default-features", "forbid-erase-proof", "MACOSX_DEPLOYMENT_TARGET=13.0", "CARGO_INCREMENTAL=0"]
+    "buildFlags": ["cargo-auditable-0.7.5-asset-sha256:92720fff2be27492ca7b216510a27e88a835b526e9e94e46bc36b502ba17d8f0", "cargo-auditable-wrapper-path:$RUNNER_TEMP/phase4-macos-build/tool/cargo-auditable", "cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit --bin midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid", "no-default-features", "forbid-erase-proof", "MACOSX_DEPLOYMENT_TARGET=13.0", "CARGO_INCREMENTAL=0"]
   },
   "destination": {"repository": "effectstream/binaries", "tag": "0.3.120"},
   "distributionTier": "development-only",

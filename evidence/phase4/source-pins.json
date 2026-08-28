@@ -86,6 +86,7 @@
       "defaultFeatures": [],
       "forbiddenFeatures": ["erase-proof"],
       "buildCommand": "cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit --bin midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid",
+      "cargoAuditableWrapperPath": "$RUNNER_TEMP/phase4-macos-build/tool/cargo-auditable",
       "macosDeploymentTarget": "13.0"
     }
   },

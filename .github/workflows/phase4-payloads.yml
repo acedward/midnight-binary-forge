@@ -344,7 +344,7 @@ jobs:
           grep -Fq 'erase-proof' upstream/util/toolkit/Cargo.toml
           build_id='${{ matrix.build_id }}'
           case "$build_id" in 1|2) ;; *) exit 2 ;; esac
-          work="$RUNNER_TEMP/phase4-macos-build-$build_id"
+          work="$RUNNER_TEMP/phase4-macos-build"
           out="$GITHUB_WORKSPACE/phase4-output-toolkit-macos-arm64-build$build_id"
           mkdir -p "$work/download" "$work/tool" "$work/package" "$out/payloads" "$out/evidence" "$out/sbom"
           python3 scripts/fetch_verified.py --url https://static.rust-lang.org/dist/channel-rust-1.95.0.toml \
@@ -374,6 +374,7 @@ jobs:
             rustc +1.95.0 -Vv
             cargo +1.95.0 -V
             cargo auditable --version
+            printf 'cargoAuditablePath=%s\n' "$(command -v cargo-auditable)"
             sw_vers
             uname -a
             uname -m
@@ -381,7 +382,7 @@ jobs:
             xcrun --sdk macosx --show-sdk-path
             xcrun --sdk macosx --show-sdk-version
             xcrun clang --version
-            printf 'MACOSX_DEPLOYMENT_TARGET=%s\nSOURCE_DATE_EPOCH=%s\nCARGO_INCREMENTAL=%s\n' "$MACOSX_DEPLOYMENT_TARGET" "$SOURCE_DATE_EPOCH" "$CARGO_INCREMENTAL"
+            printf 'MACOSX_DEPLOYMENT_TARGET=%s\nSOURCE_DATE_EPOCH=%s\nCARGO_INCREMENTAL=%s\nRUNNER_TEMP=%s\n' "$MACOSX_DEPLOYMENT_TARGET" "$SOURCE_DATE_EPOCH" "$CARGO_INCREMENTAL" "$RUNNER_TEMP"
           } >"$out/evidence/build-and-system.log" 2>&1
           (cd upstream && cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit --bin midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid) 2>&1 | tee -a "$out/evidence/build-and-system.log"
           cp upstream/target/release/midnight-node-toolkit "$work/package/midnight-node-toolkit"

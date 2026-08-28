@@ -231,6 +231,8 @@ class Phase4PayloadTest(unittest.TestCase):
         self.assertNotIn("BUILD_ID:", workflow)
         self.assertIn("build_id='${{ matrix.build_id }}'", workflow)
         self.assertIn('case "$build_id" in 1|2)', workflow)
+        self.assertIn('work="$RUNNER_TEMP/phase4-macos-build"', workflow)
+        self.assertNotIn('phase4-macos-build-$build_id', workflow)
         command = "cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit --bin midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid"
         self.assertEqual(workflow.count(command), 2)
         self.assertIn("grep -Fq 'cmd LC_UUID'", workflow)
@@ -245,6 +247,10 @@ class Phase4PayloadTest(unittest.TestCase):
         self.assertEqual(
             pins["node"]["toolkitSource"]["buildCommand"],
             "cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit --bin midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid",
+        )
+        self.assertEqual(
+            pins["node"]["toolkitSource"]["cargoAuditableWrapperPath"],
+            "$RUNNER_TEMP/phase4-macos-build/tool/cargo-auditable",
         )
         self.assertEqual(pins["celestiaApp"]["license"]["spdx"], "Apache-2.0")
         self.assertEqual(pins["celestiaNode"]["license"]["spdx"], "Apache-2.0")
