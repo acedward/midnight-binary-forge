@@ -1,5 +1,5 @@
 {
-  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "valid.json",
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "promotion-envelope-fixture-1.json",
   "set": { "path": "/claims/staging/runAttempt", "value": true },
   "expectedError": "invalid staging runAttempt"
 }

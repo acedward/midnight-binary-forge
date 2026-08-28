@@ -1,5 +1,5 @@
 {
-  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "valid.json",
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "promotion-envelope-fixture-1.json",
   "set": { "path": "/claims/candidateDraft/targetCommitish", "value": "ffffffffffffffffffffffffffffffffffffffff" },
   "expectedError": "candidate target is not issuer commit"
 }

@@ -1,5 +1,5 @@
 {
-  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "valid.json",
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "promotion-envelope-fixture-1.json",
   "set": { "path": "/claims/candidateDraft/releaseUrl", "value": "https://github.com/acedward/midnight-binary-forge/releases/tag/forge-2026.08.27.2" },
   "expectedError": "candidate URL/tag mismatch"
 }

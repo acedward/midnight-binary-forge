@@ -1,6 +1,6 @@
 {
   "fixtureVersion": "promotion-envelope-invalid-fixture-v1",
-  "base": "valid.json",
+  "base": "promotion-envelope-fixture-1.json",
   "set": { "path": "/claims/contentAssets/0/name", "value": "../escape" },
   "expectedError": "content asset names must be inert basenames"
 }

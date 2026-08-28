@@ -69,10 +69,16 @@ class FakeOpener:
 class ForgeToolsTest(unittest.TestCase):
     def test_promotion_envelope_and_invalid_golden_mutations(self) -> None:
         fixture_dir = ROOT / "tests/fixtures/envelope"
-        base = canonical_json.load_json(fixture_dir / "valid.json")
+        base = canonical_json.load_json(fixture_dir / "promotion-envelope-fixture-1.json")
         canonical_json.verify_envelope(base)
         live = canonical_json.load_json(fixture_dir / "live-valid.json")
-        canonical_json.verify_live_evidence(base, live, allow_expired_staging=False)
+        canonical_json.verify_live_evidence(
+            base,
+            live,
+            fixture_dir / "promotion-envelope-fixture-1.json",
+            fixture_dir / "attestation-fixture-1.sigstore.json",
+            allow_expired_staging=False,
+        )
         for descriptor_path in sorted(fixture_dir.glob("invalid-*.json")):
             descriptor = json.loads(descriptor_path.read_text())
             def apply_and_verify() -> None:
@@ -116,6 +122,23 @@ class ForgeToolsTest(unittest.TestCase):
             self.assertEqual(canonical_json.canonical_bytes(value).hex(), vector["utf8Hex"], vector["name"])
         with self.assertRaisesRegex(canonical_json.ProtocolError, "lone Unicode surrogate"):
             canonical_json.canonical_bytes("\ud800")
+
+    def test_live_evidence_rejects_transport_substitution(self) -> None:
+        fixture_dir = ROOT / "tests/fixtures/envelope"
+        envelope_path = fixture_dir / "promotion-envelope-fixture-1.json"
+        bundle_path = fixture_dir / "attestation-fixture-1.sigstore.json"
+        envelope = canonical_json.load_json(envelope_path)
+        live = canonical_json.load_json(fixture_dir / "live-valid.json")
+        with tempfile.TemporaryDirectory() as directory_text:
+            directory = Path(directory_text)
+            bad_bundle = directory / bundle_path.name
+            bad_bundle.write_bytes(bundle_path.read_bytes() + b"x")
+            with self.assertRaisesRegex(canonical_json.ProtocolError, "raw attestation bundle digest mismatch"):
+                canonical_json.verify_live_evidence(envelope, live, envelope_path, bad_bundle)
+            bad_envelope = directory / envelope_path.name
+            bad_envelope.write_bytes(envelope_path.read_bytes() + b" ")
+            with self.assertRaisesRegex(canonical_json.ProtocolError, "not canonical"):
+                canonical_json.verify_live_evidence(envelope, live, bad_envelope, bundle_path)
 
     def test_verified_fetch_is_create_only_and_digest_bound(self) -> None:
         payload = b"inert fixture bytes\n"

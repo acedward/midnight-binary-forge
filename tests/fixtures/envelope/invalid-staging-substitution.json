@@ -1,6 +1,6 @@
 {
   "fixtureVersion": "promotion-envelope-invalid-fixture-v1",
-  "base": "valid.json",
+  "base": "promotion-envelope-fixture-1.json",
   "set": { "path": "/claims/staging/artifactName", "value": "verified-content-fixture-1-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
   "expectedError": "staging name does not bind content-list digest"
 }

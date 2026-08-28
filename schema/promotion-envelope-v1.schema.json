@@ -37,10 +37,13 @@
     "attestation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "predicateType", "bundleName", "bundleSha256", "subjectDigest", "issuer", "identity"],
+      "required": ["kind", "predicateType", "predicateCanonicalization", "predicateSha256", "subjectName", "bundleName", "bundleSha256", "subjectDigest", "issuer", "identity"],
       "properties": {
         "kind": { "const": "github-artifact-attestation" },
         "predicateType": { "const": "https://github.com/acedward/midnight-binary-forge/predicates/promotion-envelope/v1" },
+        "predicateCanonicalization": { "const": "forge-canonical-json-v1" },
+        "predicateSha256": { "$ref": "#/$defs/sha256" },
+        "subjectName": { "type": "string", "pattern": "^promotion-claims-[a-z0-9][a-z0-9._-]{2,127}$" },
         "bundleName": { "$ref": "#/$defs/attestationName" },
         "bundleSha256": { "$ref": "#/$defs/sha256" },
         "subjectDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },

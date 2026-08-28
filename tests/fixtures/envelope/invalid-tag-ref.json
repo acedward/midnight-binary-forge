@@ -1,5 +1,5 @@
 {
-  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "valid.json",
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "promotion-envelope-fixture-1.json",
   "set": { "path": "/claims/issuer/ref", "value": "refs/tags/forge-2026.08.27.1/evil" },
   "expectedError": "issuer must be protected main"
 }

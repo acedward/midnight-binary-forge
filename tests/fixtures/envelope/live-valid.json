@@ -37,9 +37,9 @@
   },
   "releaseAssets": [
     { "name": "LICENSE-Apache-2.0.txt", "size": 11358, "sha256": "6666666666666666666666666666666666666666666666666666666666666666" },
-    { "name": "attestation-fixture-1.sigstore.json", "size": 4096, "sha256": "7777777777777777777777777777777777777777777777777777777777777777" },
+    { "name": "attestation-fixture-1.sigstore.json", "size": 111, "sha256": "0c98e272a4c95c4f970d1cde34cab9650dfa3c51bfbf6bd21895354683e611d2" },
     { "name": "fixture-linux-amd64-v1.0.0.zip", "size": 2048, "sha256": "8888888888888888888888888888888888888888888888888888888888888888" },
-    { "name": "promotion-envelope-fixture-1.json", "size": 8192, "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+    { "name": "promotion-envelope-fixture-1.json", "size": 4020, "sha256": "708bfb505e87c4afe1f1c63d6cc933f0adb68aa2d6bebeec92862fb69b577d60" },
     { "name": "provenance-fixture-1.json", "size": 1024, "sha256": "9999999999999999999999999999999999999999999999999999999999999999" },
     { "name": "sbom-fixture-1.spdx.json", "size": 1024, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
     { "name": "sha256sums-fixture-1.txt", "size": 512, "sha256": "5555555555555555555555555555555555555555555555555555555555555555" },

@@ -1,5 +1,5 @@
 {
-  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "valid.json",
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "promotion-envelope-fixture-1.json",
   "set": { "path": "/attestation/identity", "value": "https://github.com/attacker/forge/.github/workflows/candidate.yml@refs/heads/main" },
   "expectedError": "unexpected attestation identity"
 }

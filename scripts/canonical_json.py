@@ -5,11 +5,14 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import email.utils
 import hashlib
 import json
 import os
 import re
+import stat
 import sys
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -122,6 +125,22 @@ def digest(value: Any) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
+def file_digest(path: Path) -> tuple[str, int]:
+    info = path.lstat()
+    expect(stat.S_ISREG(info.st_mode) and not path.is_symlink(), f"transport path is not a regular file: {path}")
+    hasher = hashlib.sha256()
+    total = 0
+    with path.open("rb") as stream:
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            expect(total < 2**31, f"transport file exceeds size ceiling: {path.name}")
+            hasher.update(chunk)
+    return hasher.hexdigest(), total
+
+
 def parse_time(value: Any, label: str) -> dt.datetime:
     expect(isinstance(value, str) and RFC3339_UTC_RE.fullmatch(value) is not None, f"{label} must be canonical RFC 3339 UTC seconds")
     try:
@@ -232,9 +251,12 @@ def verify_envelope(envelope: Any, verification_time: dt.datetime | None = None,
     expected_staging_name = f"verified-content-{build_set_id}-{claims['contentAssetListSha256']}"
     expect(staging["artifactName"] == expected_staging_name, "staging name does not bind content-list digest")
 
-    attestation = expect_exact_keys(top["attestation"], {"kind", "predicateType", "bundleName", "bundleSha256", "subjectDigest", "issuer", "identity"}, "attestation")
+    attestation = expect_exact_keys(top["attestation"], {"kind", "predicateType", "predicateCanonicalization", "predicateSha256", "subjectName", "bundleName", "bundleSha256", "subjectDigest", "issuer", "identity"}, "attestation")
     expect(attestation["kind"] == "github-artifact-attestation", "unsupported attestation kind")
     expect(attestation["predicateType"] == PREDICATE_TYPE, "unexpected attestation predicate type")
+    expect(attestation["predicateCanonicalization"] == "forge-canonical-json-v1", "unexpected attestation predicate canonicalization")
+    expect(attestation["predicateSha256"] == actual_claims_digest.removeprefix("sha256:"), "attestation predicate digest mismatch")
+    expect(attestation["subjectName"] == f"promotion-claims-{build_set_id}", "unexpected attestation subject name")
     expect(attestation["bundleName"] == transport["attestationBundleName"], "attestation bundle name mismatch")
     expect(isinstance(attestation["bundleSha256"], str) and SHA256_RE.fullmatch(attestation["bundleSha256"]) is not None, "invalid attestation bundle digest")
     expect(attestation["subjectDigest"] == actual_claims_digest, "attestation subject mismatch")
@@ -242,7 +264,36 @@ def verify_envelope(envelope: Any, verification_time: dt.datetime | None = None,
     expect(attestation["identity"] == ATTESTATION_IDENTITY, "unexpected attestation identity")
 
 
-def verify_live_evidence(envelope: Any, evidence: Any, allow_expired_staging: bool = True) -> None:
+def github_api_time() -> dt.datetime:
+    expect(os.environ.get("GITHUB_ACTIONS") == "true", "production staging-liveness check must run in authenticated GitHub Actions")
+    expect(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY, "production staging-liveness check is in the wrong repository")
+    token = os.environ.get("GITHUB_TOKEN")
+    expect(bool(token), "authenticated GitHub API time requires GITHUB_TOKEN")
+    request = urllib.request.Request(
+        "https://api.github.com/rate_limit",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "midnight-binary-forge/promotion-envelope-v1",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            response.read(1)
+            date_header = response.headers.get("Date")
+    except OSError as exc:
+        raise ProtocolError(f"cannot obtain authenticated GitHub API time: {exc}") from exc
+    expect(bool(date_header), "GitHub API response has no Date header")
+    try:
+        server_time = email.utils.parsedate_to_datetime(date_header)
+    except (TypeError, ValueError) as exc:
+        raise ProtocolError("invalid GitHub API Date header") from exc
+    expect(server_time.tzinfo is not None, "GitHub API Date header lacks timezone")
+    return server_time.astimezone(dt.timezone.utc)
+
+
+def verify_live_evidence(envelope: Any, evidence: Any, envelope_path: Path, bundle_path: Path, allow_expired_staging: bool = True) -> None:
     verify_envelope(envelope)
     live = expect_exact_keys(evidence, {"schemaVersion", "capturedAt", "repository", "protectedRef", "workflowFile", "run", "stagingArtifact", "release", "releaseAssets"}, "live evidence")
     expect(live["schemaVersion"] == "promotion-live-evidence-v1", "wrong live evidence schemaVersion")
@@ -251,6 +302,12 @@ def verify_live_evidence(envelope: Any, evidence: Any, allow_expired_staging: bo
     issuer = claims["issuer"]
     staging = claims["staging"]
     candidate = claims["candidateDraft"]
+    expect(envelope_path.name == claims["transport"]["envelopeName"], "raw envelope filename mismatch")
+    expect(bundle_path.name == claims["transport"]["attestationBundleName"], "raw attestation bundle filename mismatch")
+    expect(envelope_path.read_bytes() == canonical_bytes(envelope), "raw envelope is not canonical or differs from parsed envelope")
+    envelope_digest, envelope_size = file_digest(envelope_path)
+    bundle_digest, bundle_size = file_digest(bundle_path)
+    expect(bundle_digest == envelope["attestation"]["bundleSha256"], "raw attestation bundle digest mismatch")
 
     repository = expect_exact_keys(live["repository"], {"fullName", "id", "nodeId"}, "live repository")
     expect(repository == {"fullName": REPOSITORY, "id": REPOSITORY_ID, "nodeId": REPOSITORY_NODE_ID}, "live repository identity mismatch")
@@ -301,9 +358,9 @@ def verify_live_evidence(envelope: Any, evidence: Any, allow_expired_staging: bo
         row = rows[content["name"]]
         expect(row["size"] == content["size"] and row["sha256"] == content["sha256"], f"release content bytes mismatch: {content['name']}")
     bundle = rows[claims["transport"]["attestationBundleName"]]
-    expect(bundle["sha256"] == envelope["attestation"]["bundleSha256"], "release attestation bundle digest mismatch")
+    expect(bundle["sha256"] == bundle_digest and bundle["size"] == bundle_size, "release attestation bundle bytes mismatch")
     envelope_row = rows[claims["transport"]["envelopeName"]]
-    expect(envelope_row["size"] > 0 and SHA256_RE.fullmatch(envelope_row["sha256"]) is not None, "release envelope byte evidence missing")
+    expect(envelope_row["sha256"] == envelope_digest and envelope_row["size"] == envelope_size, "release envelope bytes mismatch")
 
 
 def main() -> int:
@@ -316,10 +373,11 @@ def main() -> int:
     sha256.add_argument("input", type=Path)
     verify = subparsers.add_parser("verify-envelope")
     verify.add_argument("input", type=Path)
-    verify.add_argument("--verification-time")
+    verify.add_argument("--test-verification-time")
     verify.add_argument("--require-staging-live", action="store_true")
     live = subparsers.add_parser("verify-live")
     live.add_argument("envelope", type=Path)
+    live.add_argument("bundle", type=Path)
     live.add_argument("evidence", type=Path)
     live.add_argument("--require-staging-live", action="store_true")
     args = parser.parse_args()
@@ -327,7 +385,7 @@ def main() -> int:
         if args.command == "verify-live":
             envelope = load_json(args.envelope)
             evidence = load_json(args.evidence)
-            verify_live_evidence(envelope, evidence, allow_expired_staging=not args.require_staging_live)
+            verify_live_evidence(envelope, evidence, args.envelope, args.bundle, allow_expired_staging=not args.require_staging_live)
             print(f"OK promotion-live-evidence-v1 {args.evidence}")
         else:
             value = load_json(args.input)
@@ -347,7 +405,13 @@ def main() -> int:
             elif args.command == "sha256":
                 print(digest(value))
             else:
-                verification_time = parse_time(args.verification_time, "verification time") if args.verification_time else None
+                if args.test_verification_time:
+                    expect(os.environ.get("FORGE_TEST_ALLOW_TIME_INJECTION") == "1" and os.environ.get("GITHUB_ACTIONS") != "true", "test verification-time injection is forbidden in production")
+                    verification_time = parse_time(args.test_verification_time, "test verification time")
+                elif args.require_staging_live:
+                    verification_time = github_api_time()
+                else:
+                    verification_time = None
                 verify_envelope(value, verification_time, args.require_staging_live)
                 print(f"OK promotion-envelope-v1 {args.input}")
     except ProtocolError as exc:

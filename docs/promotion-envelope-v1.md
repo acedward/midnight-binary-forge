@@ -33,15 +33,21 @@ the complete release name set without requiring a digest fixed point.
 The finite order is:
 
 1. Build/mirror content in unprivileged jobs and upload one staging artifact.
-2. In a fresh verifier, download it, verify every content byte, emit canonical claims, and require
-   staging to be live at the captured candidate-verification time.
-3. Create the forge draft and bind its known repository/tag/numeric+node ID/target/URL in
-   `candidateDraft`. Do not claim it is already published or immutable.
-4. Attest `claimsDigest`, download the Sigstore bundle, and create the envelope carrying the bundle
+2. In a fresh read-only pre-draft verifier, download and verify every staged content byte and emit
+   only the content-list digest needed to create the draft; it does not emit final claims.
+3. The protected publisher creates an empty forge draft with the proposed tag/target, reads back its
+   repository/tag/numeric+node ID/target/URL, and passes that inert API identity to a second fresh
+   no-write/no-OIDC final-claims verifier.
+4. The final-claims verifier independently downloads staging again, verifies every content byte,
+   constructs `candidateDraft` from the read-back identity, emits canonical claims/predicate, and
+   checks staging liveness against authenticated GitHub API server time. It has no release-write or
+   attestation authority. Do not claim the draft is already published or immutable.
+5. Back in the protected publisher, attest `claimsDigest`, download the Sigstore bundle, and create
+   the envelope carrying the bundle
    digest. Neither transport byte is part of the signed content digest.
-5. The protected publisher uploads exact content plus the two transport files to the draft, reads
+6. The protected publisher uploads exact content plus the two transport files to the draft, reads
    back all bytes, and publishes the complete release under the repository immutable-release policy.
-6. Capture `promotion-live-evidence-v1` from live APIs and independent downloads. Verify the release
+7. Capture `promotion-live-evidence-v1` from live APIs and independent downloads. Verify the release
    is non-draft, non-prerelease, immutable, identity-bound, and has exactly `completeAssetNames`.
    Content sizes/digests must match signed rows; bundle digest must match the envelope. The envelope
    digest is independently captured in live evidence/warehouse receipt because an envelope cannot
@@ -55,7 +61,9 @@ The signed issuer is main-only: repository `acedward/midnight-binary-forge` (num
 that workflow path in `commitSha`, not a workflow run SHA or arbitrary label. The candidate target is
 the same commit. Candidate URL is derived exactly from its tag.
 
-`scripts/canonical_json.py verify-live` freezes required API relations:
+`scripts/canonical_json.py verify-live <envelope> <bundle> <live-evidence>` hashes the exact raw
+canonical envelope and exact raw bundle before checking their release rows, then freezes required
+API relations:
 
 - repository full/numeric/node identity;
 - protected main resolves to the issuer commit;
@@ -68,13 +76,25 @@ the same commit. Candidate URL is derived exactly from its tag.
   size/digest rows, the bundle matches its envelope digest, and the envelope has independently
   captured bytes.
 
-The actual bundle is additionally verified with GitHub's attestation verifier against exact OIDC
-issuer, main workflow identity, predicate type, repository, and `claimsDigest`. Structural JSON is
-not a substitute for cryptographic bundle verification.
+The protected publisher invokes full-SHA-pinned `actions/attest` custom mode with exactly:
+
+- `subject-name=promotion-claims-<buildSetId>`;
+- `subject-digest=<claimsDigest>`;
+- `predicate-type=https://github.com/acedward/midnight-binary-forge/predicates/promotion-envelope/v1`;
+- `predicate-path=promotion-claims-<buildSetId>.json`, whose bytes are canonical `claims` and whose
+  SHA-256 equals the subject digest;
+- `show-summary=false` and the job's repository-scoped GitHub token.
+
+The raw bundle is digest-bound by `verify-live` and additionally verified with GitHub's attestation
+verifier using the downloaded bundle, exact subject name/digest, OIDC issuer, main workflow identity,
+predicate type, repository, and equality of the bundle predicate to canonical claims. Structural
+JSON is not a substitute for cryptographic bundle verification.
 
 `expiresAt` is canonical RFC 3339 UTC seconds (`YYYY-MM-DDTHH:MM:SSZ`). Candidate publication passes
-`verify-envelope --require-staging-live --verification-time <captured UTC time>` and requires that
-time to be earlier than expiry. Later warehouse verification may accept an expired/removed staging
+`verify-envelope --require-staging-live`; the reference obtains non-overridable time from the Date
+header of an authenticated GitHub API response in the expected Actions repository and requires that
+server time to precede expiry. `--test-verification-time` exists only when
+`FORGE_TEST_ALLOW_TIME_INJECTION=1` outside GitHub Actions. Later warehouse verification may accept an expired/removed staging
 artifact only after the immutable release and every current candidate byte pass live verification;
 expiry never invalidates an already verified immutable release.
 
@@ -90,7 +110,8 @@ staging substitution or candidate-time expiry, incomplete/duplicate/unsorted/pat
 count/digest mismatch, transport bytes in signed content, unsupported roles/media types, invalid
 component IDs, missing canonical evidence, invalid Unicode, and every live API/re-download mismatch.
 
-`tests/fixtures/envelope/valid.json`, `live-valid.json`, and all invalid mutation descriptors are
+`tests/fixtures/envelope/promotion-envelope-fixture-1.json`, `live-valid.json`, the raw fixture
+bundle, and all invalid mutation descriptors are
 normative interoperability fixtures. Invalid descriptors name the valid base, an exact mutation,
 and required rejection. Differential tests execute the Draft 2020-12 schemas and reference verifier
 over the same corpus.
