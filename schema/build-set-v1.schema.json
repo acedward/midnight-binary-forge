@@ -10,6 +10,7 @@
     "sourceFullSha",
     "destination",
     "components",
+    "inputArtifacts",
     "existingCoverage",
     "payloads",
     "payloadCount",
@@ -45,6 +46,12 @@
         }
       }
     },
+    "inputArtifacts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/inputArtifact" }
+    },
     "existingCoverage": {
       "type": "array",
       "items": { "$ref": "#/$defs/coverage" }
@@ -75,6 +82,7 @@
         "typedAssetListRequired",
         "sourceManifestTemplate",
         "checksumsTemplate",
+        "inputArtifactPinningRequired",
         "destinationCredentialAllowed"
       ],
       "properties": {
@@ -83,11 +91,56 @@
         "typedAssetListRequired": { "const": true },
         "sourceManifestTemplate": { "const": "source-manifest-<buildSetId>.json" },
         "checksumsTemplate": { "const": "sha256sums-<buildSetId>.txt" },
+        "inputArtifactPinningRequired": { "const": true },
         "destinationCredentialAllowed": { "const": false }
       }
     }
   },
   "$defs": {
+    "inputArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "repository",
+        "repositoryId",
+        "workflowPath",
+        "runId",
+        "runAttempt",
+        "runEvent",
+        "runConclusion",
+        "sourceRef",
+        "sourceHeadSha",
+        "artifactId",
+        "artifactName",
+        "artifactSize",
+        "archiveSha256",
+        "expiresAt"
+      ],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$" },
+        "repository": { "const": "acedward/midnight-binary-forge" },
+        "repositoryId": { "const": 1349127482 },
+        "workflowPath": {
+          "enum": [
+            ".github/workflows/proof-data-q8b.yml",
+            ".github/workflows/phase4-payloads.yml",
+            ".github/workflows/phase5-indexer.yml"
+          ]
+        },
+        "runId": { "type": "integer", "minimum": 1 },
+        "runAttempt": { "const": 1 },
+        "runEvent": { "enum": ["pull_request", "push", "workflow_dispatch"] },
+        "runConclusion": { "const": "success" },
+        "sourceRef": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$" },
+        "sourceHeadSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "artifactId": { "type": "integer", "minimum": 1 },
+        "artifactName": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$" },
+        "artifactSize": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "archiveSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "expiresAt": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+      }
+    },
     "coverage": {
       "type": "object",
       "additionalProperties": false,
@@ -137,13 +190,31 @@
     "payload": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "role", "artifactKind", "componentId", "tier"],
+      "required": [
+        "name",
+        "role",
+        "artifactKind",
+        "componentId",
+        "tier",
+        "container",
+        "size",
+        "sha256",
+        "sourceArtifactKey",
+        "sourcePath",
+        "installMode"
+      ],
       "properties": {
         "name": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
         "role": { "const": "payload" },
         "artifactKind": { "enum": ["software", "proof-data"] },
         "componentId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$" },
         "tier": { "enum": ["required", "desired", "optional", "noarch"] },
+        "container": { "enum": ["raw", "zip", "tar.gz"] },
+        "size": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sourceArtifactKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$" },
+        "sourcePath": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$" },
+        "installMode": { "enum": ["0644", "0755"] },
         "os": { "enum": ["linux", "macos"] },
         "arch": { "enum": ["amd64", "arm64"] },
         "platform": { "const": "noarch" },

@@ -5,10 +5,30 @@ an existing asset.
 
 ## Before forge publication
 
-- A build/verifier/publisher failure leaves only ephemeral staging or a failed draft.
+- A build/verifier failure before the public transition leaves only ephemeral staging or a failed
+  draft. A generic publisher/workflow failure does not prove that state: it may instead be a
+  post-publication Actions-artifact handoff failure after the release became immutable.
 - Delete/expire staging under its normal retention policy only after retaining non-secret logs and
   manifest/digest evidence. A failed draft is not promoted and its tag is not reused.
 - Correct source/build/packaging metadata on a new reviewed commit and create a new candidate tag.
+
+## Immutable publication succeeded but final handoff failed
+
+- The read-only workflow-run recovery lane is permitted only for a completed failed candidate run
+  whose normal `published-candidate-<build-set>` handoff is absent. It must bind the exact original
+  run/head/workflow, retained canonical claims and draft artifacts, staging artifact ID/digest, and
+  the signed release ID/node/tag/target/URL.
+- It rechecks the dedicated immutable-release setting, requires the existing release to be
+  non-draft, non-prerelease, and immutable, then downloads and hashes the exact signed 54-asset set.
+  It cryptographically verifies the original attestation bundle and retains canonical recovered
+  evidence for live verification/audit.
+- Recovery is strictly observational. Never create a second release, resume or re-upload assets,
+  patch or republish the release, delete a tag/release/asset, or replace the failed handoff. Wrong,
+  missing, ambiguous, expired, or substituted run/artifact/claims/draft/release/asset evidence is a
+  hard stop for human review.
+- If the bound release remains a draft or mutable, classify it as a before-publication failure and
+  abandon the recovery path without mutation. Correct the cause on a new reviewed commit and use a
+  new monotonically increasing candidate tag.
 
 ## After immutable forge publication, before warehouse append
 

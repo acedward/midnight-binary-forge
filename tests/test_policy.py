@@ -191,12 +191,13 @@ class CatalogPolicyTest(unittest.TestCase):
             target.write_bytes((POLICY_FIXTURES / name).read_bytes())
             components[value["componentId"]] = value
             references.append({"componentId": value["componentId"], "manifestPath": f"catalog/components/{name}", "manifestSha256": sha256(target)})
+        common = {"size": 1, "sha256": "b" * 64, "sourceArtifactKey": "fixture-input", "installMode": "0755"}
         payloads = [
-            {"name": "bls_midnight_2p0", "role": "payload", "artifactKind": "proof-data", "componentId": "midnight-srs-k0", "tier": "noarch", "platform": "noarch", "k": 0},
-            {"name": "fixture-tool-linux-amd64-v1.0.0.zip", "role": "payload", "artifactKind": "software", "componentId": "fixture-tool-1.0.0", "tier": "required", "os": "linux", "arch": "amd64"},
-            {"name": "fixture-tool-linux-arm64-v1.0.0.zip", "role": "payload", "artifactKind": "software", "componentId": "fixture-tool-1.0.0", "tier": "desired", "os": "linux", "arch": "arm64"},
-            {"name": "fixture-tool-macos-arm64-v1.0.0.zip", "role": "payload", "artifactKind": "software", "componentId": "fixture-tool-1.0.0", "tier": "required", "os": "macos", "arch": "arm64"},
-            {"name": "midnight-ledger-static-noarch-9.0.0.zip", "role": "payload", "artifactKind": "proof-data", "componentId": "midnight-ledger-static-9.0.0", "tier": "noarch", "platform": "noarch", "ledgerStaticSemver": "9.0.0"},
+            {"name": "bls_midnight_2p0", "role": "payload", "artifactKind": "proof-data", "componentId": "midnight-srs-k0", "tier": "noarch", "platform": "noarch", "k": 0, **common, "container": "raw", "sourcePath": "payloads/bls_midnight_2p0", "installMode": "0644"},
+            {"name": "fixture-tool-linux-amd64-v1.0.0.zip", "role": "payload", "artifactKind": "software", "componentId": "fixture-tool-1.0.0", "tier": "required", "os": "linux", "arch": "amd64", **common, "container": "zip", "sourcePath": "payloads/fixture-tool-linux-amd64-v1.0.0.zip"},
+            {"name": "fixture-tool-linux-arm64-v1.0.0.zip", "role": "payload", "artifactKind": "software", "componentId": "fixture-tool-1.0.0", "tier": "desired", "os": "linux", "arch": "arm64", **common, "container": "zip", "sourcePath": "payloads/fixture-tool-linux-arm64-v1.0.0.zip"},
+            {"name": "fixture-tool-macos-arm64-v1.0.0.zip", "role": "payload", "artifactKind": "software", "componentId": "fixture-tool-1.0.0", "tier": "required", "os": "macos", "arch": "arm64", **common, "container": "zip", "sourcePath": "payloads/fixture-tool-macos-arm64-v1.0.0.zip"},
+            {"name": "midnight-ledger-static-noarch-9.0.0.zip", "role": "payload", "artifactKind": "proof-data", "componentId": "midnight-ledger-static-9.0.0", "tier": "noarch", "platform": "noarch", "ledgerStaticSemver": "9.0.0", **common, "container": "zip", "sourcePath": "payloads/midnight-ledger-static-noarch-9.0.0.zip", "installMode": "0644"},
         ]
         build_set = {
             "schemaVersion": "build-set-v1",
@@ -204,11 +205,18 @@ class CatalogPolicyTest(unittest.TestCase):
             "sourceFullSha": "a" * 40,
             "destination": {"repository": "effectstream/binaries", "tag": "0.3.120", "distributionTier": "development-only", "releaseMutability": "mutable-warehouse"},
             "components": references,
+            "inputArtifacts": [{
+                "key": "fixture-input", "repository": "acedward/midnight-binary-forge", "repositoryId": 1349127482,
+                "workflowPath": ".github/workflows/phase4-payloads.yml", "runId": 1, "runAttempt": 1,
+                "runEvent": "pull_request", "runConclusion": "success", "sourceRef": "fixture",
+                "sourceHeadSha": "c" * 40, "artifactId": 1, "artifactName": "fixture-input",
+                "artifactSize": 1, "archiveSha256": "d" * 64, "expiresAt": "2026-09-27T00:00:00Z",
+            }],
             "existingCoverage": [],
             "payloads": sorted(payloads, key=lambda row: row["name"]),
             "payloadCount": len(payloads),
             "coveragePolicy": {"required": ["linux/amd64", "macos/arm64"], "desired": ["linux/arm64"], "optional": ["macos/amd64"], "proofDataPlatform": "noarch"},
-            "candidatePolicy": {"immutableReleaseRequired": True, "protectedDefaultBranchRequired": True, "typedAssetListRequired": True, "sourceManifestTemplate": "source-manifest-<buildSetId>.json", "checksumsTemplate": "sha256sums-<buildSetId>.txt", "destinationCredentialAllowed": False},
+            "candidatePolicy": {"immutableReleaseRequired": True, "protectedDefaultBranchRequired": True, "typedAssetListRequired": True, "sourceManifestTemplate": "source-manifest-<buildSetId>.json", "checksumsTemplate": "sha256sums-<buildSetId>.txt", "inputArtifactPinningRequired": True, "destinationCredentialAllowed": False},
         }
         return build_dir, build_set
 
@@ -249,6 +257,12 @@ class CatalogPolicyTest(unittest.TestCase):
                 "tier": "required",
                 "os": "linux",
                 "arch": "amd64",
+                "container": "tar.gz",
+                "size": 1,
+                "sha256": "e" * 64,
+                "sourceArtifactKey": "fixture-input",
+                "sourcePath": "payloads/celestia-appd-linux-amd64-v6.4.10.tar.gz",
+                "installMode": "0755",
             }
             build_set["payloads"].append(payload)
             build_set["payloads"].sort(key=lambda row: row["name"])
@@ -270,6 +284,51 @@ class CatalogPolicyTest(unittest.TestCase):
                 with self.subTest(case=mutation["name"]), self.assertRaises(ForgeError):
                     validate_catalog.validate_build_set(adversarial, root)
 
+    def test_existing_coverage_can_complete_a_reviewed_family_without_fabricated_target_component(self) -> None:
+        """Legacy exact bytes prove coverage; they are not retroactively declared as new native builds."""
+        coverage_fixture = fixture("adversarial-existing-coverage.json")
+        with tempfile.TemporaryDirectory() as text:
+            root = Path(text)
+            _, build_set = self._make_build_root(root)
+            component = fixture("valid-existing-coverage-software.json")
+            component["targets"] = [{"os": "linux", "arch": "amd64", "tier": "required", "runner": "ubuntu-24.04", "native": True}]
+            component["signing"] = {
+                "applicability": "not-applicable", "distributionSigningState": "NOT_APPLICABLE",
+                "codeSignatureKind": "none", "cdHash": None, "authorities": [],
+                "teamId": None, "hardenedRuntime": None, "strictVerification": False,
+            }
+            component_path = root / "catalog/components/valid-existing-coverage-software.json"
+            write_json(component_path, component)
+            build_set["components"].append({
+                "componentId": component["componentId"],
+                "manifestPath": "catalog/components/valid-existing-coverage-software.json",
+                "manifestSha256": sha256(component_path),
+            })
+            candidate_name = "celestia-appd-linux-amd64-v6.4.10.tar.gz"
+            build_set["payloads"].append({
+                "name": candidate_name,
+                "role": "payload",
+                "artifactKind": "software",
+                "componentId": component["componentId"],
+                "tier": "required",
+                "os": "linux",
+                "arch": "amd64",
+                "container": "tar.gz",
+                "size": 1,
+                "sha256": "e" * 64,
+                "sourceArtifactKey": "fixture-input",
+                "sourcePath": f"payloads/{candidate_name}",
+                "installMode": "0755",
+            })
+            build_set["payloads"].sort(key=lambda row: row["name"])
+            build_set["payloadCount"] += 1
+            coverage = copy.deepcopy(coverage_fixture["positive"])
+            build_set["existingCoverage"] = [coverage]
+            report = validate_catalog.validate_build_set(build_set, root)
+            celestia = next(row for row in report["families"] if row["family"] == "celestia-appd")
+            self.assertEqual(celestia["required"]["present"], ["linux/amd64", "macos/arm64"])
+            self.assertEqual(celestia["required"]["missing"], [])
+
     def test_duplicate_software_semantic_tuple_across_names_and_components(self) -> None:
         adversarial = fixture("adversarial-duplicate-software-tuple.json")
         with tempfile.TemporaryDirectory() as text:
@@ -285,10 +344,19 @@ class CatalogPolicyTest(unittest.TestCase):
                 "manifestPath": "catalog/components/duplicate-software-semantic-tuple.json",
                 "manifestSha256": sha256(path),
             })
-            build_set["payloads"].append(adversarial["duplicatePayload"])
+            duplicate_payload = copy.deepcopy(adversarial["duplicatePayload"])
+            duplicate_payload.update({
+                "container": "zip",
+                "size": 1,
+                "sha256": "f" * 64,
+                "sourceArtifactKey": "fixture-input",
+                "sourcePath": f"payloads/{duplicate_payload['name']}",
+                "installMode": "0755",
+            })
+            build_set["payloads"].append(duplicate_payload)
             build_set["payloads"].sort(key=lambda row: row["name"])
             build_set["payloadCount"] += 1
-            with self.assertRaisesRegex(ForgeError, "duplicate software semantic tuple"):
+            with self.assertRaisesRegex(ForgeError, "duplicate software semantic tuple|conflicting public name"):
                 validate_catalog.validate_build_set(build_set, root)
 
 

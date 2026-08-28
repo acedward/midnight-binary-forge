@@ -36,6 +36,11 @@ class Member:
     size: int
     compressed_size: int
     opener: callable
+    uid: int | None = None
+    gid: int | None = None
+    uname: str | None = None
+    gname: str | None = None
+    mtime: int | float | None = None
 
 
 @contextlib.contextmanager
@@ -79,7 +84,7 @@ def zip_members(path: Path) -> Iterator[Member]:
         archive.close()
 
 
-def tar_members(path: Path) -> Iterator[Member]:
+def tar_members(path: Path, require_canonical_owner: bool = True) -> Iterator[Member]:
     archive = tarfile.open(path, "r:gz")
     try:
         expect(not archive.pax_headers, "global PAX metadata forbidden")
@@ -88,12 +93,13 @@ def tar_members(path: Path) -> Iterator[Member]:
             safe_member_name(name)
             expect(not info.pax_headers, f"PAX metadata forbidden: {name}")
             expect(not info.issym() and not info.islnk(), f"archive links forbidden: {name}")
-            expect(info.uid in {0} and info.gid in {0}, f"non-canonical tar owner forbidden: {name}")
+            if require_canonical_owner:
+                expect(info.uid in {0} and info.gid in {0}, f"non-canonical tar owner forbidden: {name}")
             if info.isdir():
-                yield Member(name, "directory", f"{info.mode:04o}", 0, 0, lambda: None)
+                yield Member(name, "directory", f"{info.mode:04o}", 0, 0, lambda: None, info.uid, info.gid, info.uname, info.gname, info.mtime)
             else:
                 expect(info.isfile(), f"unsafe tar member type: {name}")
-                yield Member(name, "file", f"{info.mode:04o}", info.size, info.size, lambda member_name=info.name: open_tar_member(path, member_name))
+                yield Member(name, "file", f"{info.mode:04o}", info.size, info.size, lambda member_name=info.name: open_tar_member(path, member_name), info.uid, info.gid, info.uname, info.gname, info.mtime)
     finally:
         archive.close()
 
