@@ -116,8 +116,11 @@ class Phase5IndexerTest(unittest.TestCase):
             binary.write_bytes(b"clean\x00/home/runner/.cargo/registry/source.rs\x00")
             with self.assertRaisesRegex(ValueError, "forbidden runner path"):
                 phase5_indexer_contract.scan_binary(binary, ["/home/runner", "/runner/temp"])
+            binary.write_bytes(b"/usr/src/runner-home/work/_temp/phase5-cargo-home-linux-amd64-build1/registry")
+            with self.assertRaisesRegex(ValueError, "phase5-cargo-home"):
+                phase5_indexer_contract.scan_binary(binary, ["phase5-cargo-home-linux-amd64-build1"])
             binary.write_bytes(b"clean-remapped-/usr/src/cargo-home")
-            evidence = phase5_indexer_contract.scan_binary(binary, ["/home/runner", "/runner/temp"])
+            evidence = phase5_indexer_contract.scan_binary(binary, ["/home/runner", "/runner/temp", "phase5-cargo-home-linux-amd64-build1"])
             self.assertEqual(evidence["scan"]["allOccurrences"], 0)
 
     def test_runtime_log_scan_rejects_fatal_first_log_even_if_restart_is_clean(self) -> None:

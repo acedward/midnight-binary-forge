@@ -83,6 +83,17 @@ def validate_target_contract_structure(contract: dict[str, Any], os_name: str, a
     if environment["CARGO_HOME"] != "${RUNNER_TEMP}/phase5-cargo-home-${os}-${arch}-build${attempt}":
         raise ValueError(f"Cargo-home template differs: {os_name}/{arch}")
     rustflags = environment["RUSTFLAGS"]
+    expected_rustflags = (
+        "--remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home "
+        "--remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp "
+        "--remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home "
+        "--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer "
+        "-C strip=symbols"
+    )
+    if os_name == "linux":
+        expected_rustflags += " -C link-arg=-Wl,--build-id=sha1"
+    if rustflags != expected_rustflags:
+        raise ValueError(f"RUSTFLAGS value/order differs: {os_name}/{arch}")
     for required_flag in (
         "--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer",
         "--remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home",
@@ -92,8 +103,6 @@ def validate_target_contract_structure(contract: dict[str, Any], os_name: str, a
     ):
         if required_flag not in rustflags:
             raise ValueError(f"missing RUSTFLAGS contract {required_flag}: {os_name}/{arch}")
-    if os_name == "linux" and "-C link-arg=-Wl,--build-id=sha1" not in rustflags:
-        raise ValueError(f"missing deterministic Linux build ID: {os_name}/{arch}")
     if os_name == "macos" and "no_uuid" in rustflags:
         raise ValueError(f"macOS no_uuid must remain final-product-only: {os_name}/{arch}")
 

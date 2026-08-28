@@ -22,7 +22,7 @@
       "env:LC_ALL=C",
       "env:MIDNIGHT_INDEXER_BUILD_DATE=2026-08-24",
       "env:MIDNIGHT_INDEXER_GIT_SHA=56561b2f",
-      "env:RUSTFLAGS=--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home -C strip=symbols -C link-arg=-Wl,--build-id=sha1",
+      "env:RUSTFLAGS=--remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols -C link-arg=-Wl,--build-id=sha1",
       "env:SOURCE_DATE_EPOCH=1787533457",
       "env:TZ=UTC",
       "finalProductLinkerFlags=[]"

@@ -310,6 +310,8 @@ python3 scripts/phase5_indexer_contract.py scan-binary \
   --forbid-prefix "$RUNNER_TEMP" \
   --forbid-prefix "$GITHUB_WORKSPACE" \
   --forbid-prefix "$CARGO_HOME" \
+  --forbid-prefix "phase5-cargo-home-${TARGET_ID}-build${PHASE5_ATTEMPT}" \
+  --forbid-prefix "phase5-indexer-${TARGET_ID}-build${PHASE5_ATTEMPT}" \
   --forbid-prefix /home/runner \
   --forbid-prefix /Users/runner
 readonly BIN_SHA="$(python3 - "$WORK/package/$INNER/$INNER" <<'PY'
