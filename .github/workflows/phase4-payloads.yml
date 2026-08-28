@@ -1,0 +1,488 @@
+name: Phase 4 node toolkit and Celestia payloads
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/phase4-payloads.yml'
+      - 'catalog/components/**'
+      - 'evidence/phase4/**'
+      - 'scripts/phase4_*'
+      - 'scripts/probe_phase4_toolkit.sh'
+      - 'scripts/manifest_single_file.py'
+      - 'scripts/emit_phase4_evidence.py'
+      - 'scripts/inspect_macos_signature.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase4-payloads-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  toolkit-linux:
+    name: Toolkit ${{ matrix.os }}/${{ matrix.arch }} official-byte repack
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-24.04
+            source_name: midnight-node-toolkit-2.0.0-rc.4-linux-amd64.tar.gz
+            source_size: 50581636
+            source_sha256: fdd9f6974c1c20928d3b9dc79c13c51bf984eb6dc4cdaf1978a1b037794402de
+            component: catalog/components/midnight-node-toolkit-2.0.0-rc.4-linux-amd64.json
+          - os: linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            source_name: midnight-node-toolkit-2.0.0-rc.4-linux-arm64.tar.gz
+            source_size: 48937006
+            source_sha256: 85513afbfe4dd3fccadde6ad5d7ccf82b8fa0c88d010445fc62c223c9ef078eb
+            component: catalog/components/midnight-node-toolkit-2.0.0-rc.4-linux-arm64.json
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    steps:
+      - name: Check out exact forge source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Repack twice and run native contract
+        env:
+          SOURCE_NAME: ${{ matrix.source_name }}
+          SOURCE_SIZE: ${{ matrix.source_size }}
+          SOURCE_SHA256: ${{ matrix.source_sha256 }}
+          TARGET_OS: ${{ matrix.os }}
+          TARGET_ARCH: ${{ matrix.arch }}
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          set -euo pipefail
+          python3 scripts/check_runner_capability.py --runner-label "${{ matrix.runner }}" --expected-os "$TARGET_OS" --expected-arch "$TARGET_ARCH" --require-tool git --min-free-gib 5
+          work="$RUNNER_TEMP/phase4-toolkit-$TARGET_ARCH"
+          out="$GITHUB_WORKSPACE/phase4-output-toolkit-$TARGET_OS-$TARGET_ARCH"
+          mkdir -p "$work/download" "$work/run1/tree" "$work/run2/tree" "$work/run1/evidence" "$work/run2/evidence" "$out/payloads" "$out/evidence" "$out/sbom"
+          python3 scripts/fetch_verified.py \
+            --url "https://github.com/midnightntwrk/midnight-node/releases/download/node-2.0.0-rc.4/$SOURCE_NAME" \
+            --output "$work/download/$SOURCE_NAME" --size "$SOURCE_SIZE" --sha256 "$SOURCE_SHA256"
+          for run in run1 run2; do
+            python3 scripts/phase4_payloads.py --contract toolkit --archive "$work/download/$SOURCE_NAME" \
+              --staging "$work/$run/tree" --member-manifest "$work/$run/evidence/member-manifest.json" \
+              --report "$work/$run/evidence/source-inspection.json"
+            python3 scripts/package_deterministic.py --input-dir "$work/$run/tree" \
+              --members "$work/$run/evidence/member-manifest.json" \
+              --output "$work/$run/midnight-node-toolkit-$TARGET_OS-$TARGET_ARCH-2.0.0-rc.4.zip"
+          done
+          test "$(sha256sum "$work/run1/tree/midnight-node-toolkit" | cut -d' ' -f1)" = "$(sha256sum "$work/run2/tree/midnight-node-toolkit" | cut -d' ' -f1)"
+          test "$(sha256sum "$work/run1/midnight-node-toolkit-$TARGET_OS-$TARGET_ARCH-2.0.0-rc.4.zip" | cut -d' ' -f1)" = "$(sha256sum "$work/run2/midnight-node-toolkit-$TARGET_OS-$TARGET_ARCH-2.0.0-rc.4.zip" | cut -d' ' -f1)"
+          cp "$work/run1/midnight-node-toolkit-$TARGET_OS-$TARGET_ARCH-2.0.0-rc.4.zip" "$out/payloads/"
+          cp "$work/run1/evidence/member-manifest.json" "$out/evidence/member-manifest.json"
+          cp "$work/run1/evidence/source-inspection.json" "$out/evidence/source-inspection.json"
+          jq '{schemaVersion:"archive-policy-v1",container:"zip",maxCompressedBytes:100663296,maxExpandedBytes:268435456,maxMembers:1,maxExpansionRatio:8,expectedMembers:.members}' \
+            "$out/evidence/member-manifest.json" >"$work/archive-policy.json"
+          python3 scripts/validate_archive.py --archive "$out/payloads/midnight-node-toolkit-$TARGET_OS-$TARGET_ARCH-2.0.0-rc.4.zip" \
+            --policy "$work/archive-policy.json" --scratch-parent "$RUNNER_TEMP"
+          python3 scripts/validate_native.py --binary "$work/run1/tree/midnight-node-toolkit" \
+            --os "$TARGET_OS" --arch "$TARGET_ARCH" --runner-os "$TARGET_OS" --runner-arch "$TARGET_ARCH"
+          {
+            uname -a
+            cat /etc/os-release
+            file "$work/run1/tree/midnight-node-toolkit"
+            readelf -h "$work/run1/tree/midnight-node-toolkit"
+            readelf -l "$work/run1/tree/midnight-node-toolkit"
+            readelf -d "$work/run1/tree/midnight-node-toolkit"
+            readelf --version-info "$work/run1/tree/midnight-node-toolkit"
+            sha256sum "$work/run1/tree/midnight-node-toolkit" "$work/run1/midnight-node-toolkit-$TARGET_OS-$TARGET_ARCH-2.0.0-rc.4.zip"
+          } >"$out/evidence/system.log" 2>&1
+          bash scripts/probe_phase4_toolkit.sh "$work/run1/tree/midnight-node-toolkit" "$work/probes"
+          for probe in "$work/probes"/*; do printf '\n== %s ==\n' "$(basename "$probe")"; cat "$probe"; done >"$out/evidence/probe.log"
+          bash scripts/phase4_sbom.sh "$work/run1/tree/midnight-node-toolkit" "$out/sbom/midnight-node-toolkit-$TARGET_OS-$TARGET_ARCH-2.0.0-rc.4" "$TARGET_OS" "$TARGET_ARCH"
+          python3 scripts/emit_phase4_evidence.py --component "$COMPONENT" \
+            --payload "$out/payloads/midnight-node-toolkit-$TARGET_OS-$TARGET_ARCH-2.0.0-rc.4.zip" \
+            --member-manifest "$out/evidence/member-manifest.json" --source-report "$out/evidence/source-inspection.json" \
+            --probe-log "$out/evidence/probe.log" --system-log "$out/evidence/system.log" \
+            --sbom-spdx "$out/sbom/midnight-node-toolkit-$TARGET_OS-$TARGET_ARCH-2.0.0-rc.4.spdx.json" \
+            --sbom-cyclonedx "$out/sbom/midnight-node-toolkit-$TARGET_OS-$TARGET_ARCH-2.0.0-rc.4.cyclonedx.json" \
+            --output "$out/evidence/payload-evidence.json" --checksums "$out/evidence/SHA256SUMS"
+      - name: Upload inert verified toolkit payload and evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase4-toolkit-${{ matrix.os }}-${{ matrix.arch }}
+          path: phase4-output-toolkit-${{ matrix.os }}-${{ matrix.arch }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  node-linux-arm64:
+    name: Node linux/arm64 deterministic repack and start
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact forge source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Repack twice and run node with and without res
+        run: |
+          set -euo pipefail
+          python3 scripts/check_runner_capability.py --runner-label ubuntu-24.04-arm --expected-os linux --expected-arch arm64 --require-tool git --min-free-gib 8
+          work="$RUNNER_TEMP/phase4-node-arm64"
+          out="$GITHUB_WORKSPACE/phase4-output-node-linux-arm64"
+          source_name=midnight-node-2.0.0-rc.4-linux-arm64.tar.gz
+          payload_name=midnight-node-linux-arm64-2.0.0-rc.4.zip
+          executable_name=midnight-node-linux-arm64-2.0.0-rc.4
+          mkdir -p "$work/download" "$work/run1/tree" "$work/run2/tree" "$work/run1/evidence" "$work/run2/evidence" "$out/payloads" "$out/evidence" "$out/sbom"
+          python3 scripts/fetch_verified.py \
+            --url "https://github.com/midnightntwrk/midnight-node/releases/download/node-2.0.0-rc.4/$source_name" \
+            --output "$work/download/$source_name" --size 83084349 \
+            --sha256 2bfd0f768a88d0d1d49cc97bfd6b9f4401646458887219e8c021bff8d9a9ae0b
+          for run in run1 run2; do
+            python3 scripts/phase4_payloads.py --contract node --archive "$work/download/$source_name" \
+              --renamed-executable "$executable_name" --staging "$work/$run/tree" \
+              --member-manifest "$work/$run/evidence/member-manifest.json" --report "$work/$run/evidence/source-inspection.json"
+            python3 scripts/package_deterministic.py --input-dir "$work/$run/tree" \
+              --members "$work/$run/evidence/member-manifest.json" --output "$work/$run/$payload_name"
+          done
+          test "$(sha256sum "$work/run1/$payload_name" | cut -d' ' -f1)" = "$(sha256sum "$work/run2/$payload_name" | cut -d' ' -f1)"
+          cp "$work/run1/$payload_name" "$out/payloads/$payload_name"
+          cp "$work/run1/evidence/member-manifest.json" "$out/evidence/member-manifest.json"
+          cp "$work/run1/evidence/source-inspection.json" "$out/evidence/source-inspection.json"
+          jq '{schemaVersion:"archive-policy-v1",container:"zip",maxCompressedBytes:134217728,maxExpandedBytes:536870912,maxMembers:512,maxExpansionRatio:8,expectedMembers:.members}' \
+            "$out/evidence/member-manifest.json" >"$work/archive-policy.json"
+          python3 scripts/validate_archive.py --archive "$out/payloads/$payload_name" --policy "$work/archive-policy.json" --scratch-parent "$RUNNER_TEMP"
+          python3 scripts/validate_native.py --binary "$work/run1/tree/$executable_name" --os linux --arch arm64 --runner-os linux --runner-arch arm64
+          port=$(shuf -i 10000-60000 -n 1)
+          pushd "$work/run1/tree" >/dev/null
+          CFG_PRESET=dev "./$executable_name" --tmp --rpc-port "$port" >"$work/node.stdout" 2>"$work/node.stderr" &
+          node_pid=$!
+          popd >/dev/null
+          printf '%s\n' "$node_pid" >"$work/node.pid"
+          cleanup_node() {
+            if [[ -n "${node_pid:-}" ]] && kill -0 "$node_pid" 2>/dev/null; then
+              kill -TERM "$node_pid" || true
+              wait "$node_pid" || true
+            fi
+          }
+          trap cleanup_node EXIT
+          for _ in $(seq 1 60); do
+            if curl --silent --fail --header 'content-type: application/json' \
+              --data '{"id":1,"jsonrpc":"2.0","method":"system_health","params":[]}' \
+              "http://127.0.0.1:$port" >"$work/node-health.json"; then break; fi
+            if ! kill -0 "$(cat "$work/node.pid")" 2>/dev/null; then cat "$work/node.stderr" >&2; exit 2; fi
+            sleep 1
+          done
+          jq -e '.jsonrpc=="2.0" and (.result|type=="object")' "$work/node-health.json" >/dev/null
+          kill -TERM "$node_pid"
+          wait "$node_pid" || true
+          node_pid=
+          trap - EXIT
+          mkdir -p "$work/missing-res"
+          cp "$work/run1/tree/$executable_name" "$work/missing-res/$executable_name"
+          set +e
+          (cd "$work/missing-res" && timeout 20s env CFG_PRESET=dev "./$executable_name" --tmp --rpc-port "$((port + 1))") >"$work/missing-res.stdout" 2>"$work/missing-res.stderr"
+          missing_status=$?
+          set -e
+          test "$missing_status" -ne 0
+          test "$missing_status" -ne 124
+          rg -i 'res|chain|spec|No such file' "$work/missing-res.stderr"
+          "$work/run1/tree/$executable_name" --version >"$work/version.txt"
+          "$work/run1/tree/$executable_name" --help >"$work/help.txt"
+          {
+            uname -a
+            cat /etc/os-release
+            file "$work/run1/tree/$executable_name"
+            readelf -h "$work/run1/tree/$executable_name"
+            readelf -l "$work/run1/tree/$executable_name"
+            readelf -d "$work/run1/tree/$executable_name"
+            readelf --version-info "$work/run1/tree/$executable_name"
+            sha256sum "$work/run1/tree/$executable_name" "$out/payloads/$payload_name"
+          } >"$out/evidence/system.log" 2>&1
+          {
+            cat "$work/version.txt" "$work/help.txt" "$work/node-health.json" "$work/node.stdout" "$work/node.stderr"
+            printf '\nmissingResExit=%s\n' "$missing_status"
+            cat "$work/missing-res.stdout" "$work/missing-res.stderr"
+          } >"$out/evidence/probe.log"
+          bash scripts/phase4_sbom.sh "$work/run1/tree/$executable_name" "$out/sbom/$executable_name" linux arm64
+          python3 scripts/emit_phase4_evidence.py --component catalog/components/midnight-node-2.0.0-rc.4-linux-arm64.json \
+            --payload "$out/payloads/$payload_name" --member-manifest "$out/evidence/member-manifest.json" \
+            --source-report "$out/evidence/source-inspection.json" --probe-log "$out/evidence/probe.log" \
+            --system-log "$out/evidence/system.log" --sbom-spdx "$out/sbom/$executable_name.spdx.json" \
+            --sbom-cyclonedx "$out/sbom/$executable_name.cyclonedx.json" \
+            --output "$out/evidence/payload-evidence.json" --checksums "$out/evidence/SHA256SUMS"
+      - name: Upload inert verified node payload and evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase4-node-linux-arm64
+          path: phase4-output-node-linux-arm64
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  celestia-linux-arm64:
+    name: ${{ matrix.family }} linux/arm64 identity mirror
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - family: celestia-appd
+            contract: celestia-appd
+            source_name: celestia-app_Linux_arm64.tar.gz
+            output_name: celestia-appd-linux-arm64-v6.4.10.tar.gz
+            size: 180685852
+            sha256: 52cc9d59f9db5e3d2b7de91008c808f46ba319922db4a39404735b0a5dd6a76b
+            url: https://github.com/celestiaorg/celestia-app/releases/download/v6.4.10/celestia-app_Linux_arm64.tar.gz
+            executable: celestia-appd
+            component: catalog/components/celestia-appd-6.4.10-linux-arm64.json
+          - family: celestia-node
+            contract: celestia-node
+            source_name: celestia-node_Linux_arm64.tar.gz
+            output_name: celestia-node-linux-arm64-v0.28.4.tar.gz
+            size: 71184641
+            sha256: 09eb0505c5265bb08dfd09f14aa397516efd89d7b8f120e06f133d9e387ad50c
+            url: https://github.com/celestiaorg/celestia-node/releases/download/v0.28.4/celestia-node_Linux_arm64.tar.gz
+            executable: celestia
+            component: catalog/components/celestia-node-0.28.4-linux-arm64.json
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 75
+    steps:
+      - name: Check out exact forge source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Preserve upstream bytes and verify native three-member contract
+        env:
+          FAMILY: ${{ matrix.family }}
+          CONTRACT: ${{ matrix.contract }}
+          OUTPUT_NAME: ${{ matrix.output_name }}
+          SOURCE_URL: ${{ matrix.url }}
+          SOURCE_SIZE: ${{ matrix.size }}
+          SOURCE_SHA256: ${{ matrix.sha256 }}
+          EXECUTABLE: ${{ matrix.executable }}
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          set -euo pipefail
+          python3 scripts/check_runner_capability.py --runner-label ubuntu-24.04-arm --expected-os linux --expected-arch arm64 --require-tool git --min-free-gib 6
+          work="$RUNNER_TEMP/phase4-$FAMILY"
+          out="$GITHUB_WORKSPACE/phase4-output-$FAMILY-linux-arm64"
+          mkdir -p "$work/tree" "$out/payloads" "$out/evidence" "$out/sbom"
+          python3 scripts/fetch_verified.py --url "$SOURCE_URL" --output "$out/payloads/$OUTPUT_NAME" --size "$SOURCE_SIZE" --sha256 "$SOURCE_SHA256"
+          test "$(sha256sum "$out/payloads/$OUTPUT_NAME" | cut -d' ' -f1)" = "$SOURCE_SHA256"
+          python3 scripts/phase4_payloads.py --contract "$CONTRACT" --archive "$out/payloads/$OUTPUT_NAME" \
+            --staging "$work/tree" --member-manifest "$out/evidence/member-manifest.json" --report "$out/evidence/source-inspection.json"
+          python3 scripts/validate_native.py --binary "$work/tree/$EXECUTABLE" --os linux --arch arm64 --runner-os linux --runner-arch arm64
+          "$work/tree/$EXECUTABLE" version >"$work/version.txt" 2>&1
+          "$work/tree/$EXECUTABLE" --help >"$work/help.txt" 2>&1
+          {
+            uname -a
+            cat /etc/os-release
+            file "$work/tree/$EXECUTABLE"
+            readelf -h "$work/tree/$EXECUTABLE"
+            readelf -l "$work/tree/$EXECUTABLE"
+            readelf -d "$work/tree/$EXECUTABLE"
+            readelf --version-info "$work/tree/$EXECUTABLE"
+            sha256sum "$out/payloads/$OUTPUT_NAME" "$work/tree/LICENSE" "$work/tree/README.md" "$work/tree/$EXECUTABLE"
+          } >"$out/evidence/system.log" 2>&1
+          cat "$work/version.txt" "$work/help.txt" >"$out/evidence/probe.log"
+          bash scripts/phase4_sbom.sh "$work/tree/$EXECUTABLE" "$out/sbom/${OUTPUT_NAME%.tar.gz}" linux arm64
+          python3 scripts/emit_phase4_evidence.py --component "$COMPONENT" --payload "$out/payloads/$OUTPUT_NAME" \
+            --member-manifest "$out/evidence/member-manifest.json" --source-report "$out/evidence/source-inspection.json" \
+            --probe-log "$out/evidence/probe.log" --system-log "$out/evidence/system.log" \
+            --sbom-spdx "$out/sbom/${OUTPUT_NAME%.tar.gz}.spdx.json" --sbom-cyclonedx "$out/sbom/${OUTPUT_NAME%.tar.gz}.cyclonedx.json" \
+            --output "$out/evidence/payload-evidence.json" --checksums "$out/evidence/SHA256SUMS"
+      - name: Upload inert verified Celestia payload and evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase4-${{ matrix.family }}-linux-arm64
+          path: phase4-output-${{ matrix.family }}-linux-arm64
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  toolkit-macos-arm64-build:
+    name: Toolkit macos/arm64 clean build ${{ matrix.build_id }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build_id: [1, 2]
+    runs-on: macos-15
+    timeout-minutes: 210
+    steps:
+      - name: Check out exact forge source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Check out exact Midnight source in an independent tree
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: midnightntwrk/midnight-node
+          ref: 651e043b61ed445bf7a5066c60c87ea7bd606073
+          path: upstream
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Native locked build, inspection, probes, package, and evidence
+        env:
+          BUILD_ID: ${{ matrix.build_id }}
+          SOURCE_DATE_EPOCH: '1783616457'
+          MACOSX_DEPLOYMENT_TARGET: '13.0'
+          CARGO_INCREMENTAL: '0'
+          LC_ALL: C
+          TZ: UTC
+        run: |
+          set -euo pipefail
+          python3 scripts/check_runner_capability.py --runner-label macos-15 --expected-os macos --expected-arch arm64 --require-tool git --min-free-gib 10
+          test "$(git -C upstream rev-parse HEAD)" = 651e043b61ed445bf7a5066c60c87ea7bd606073
+          test "$(git -C upstream rev-parse 'HEAD^{tree}')" = 5c34f67538f20811d876f6463cf9aca5a3bc4fc9
+          test "$(shasum -a 256 upstream/Cargo.lock | cut -d' ' -f1)" = 5e95c05593b49eda1cd017e1ebbfafa8df321fb42c9a6011f3fba3e8491fed91
+          grep -Fq 'default = []' upstream/util/toolkit/Cargo.toml
+          grep -Fq 'erase-proof' upstream/util/toolkit/Cargo.toml
+          work="$RUNNER_TEMP/phase4-macos-build-$BUILD_ID"
+          out="$GITHUB_WORKSPACE/phase4-output-toolkit-macos-arm64-build$BUILD_ID"
+          mkdir -p "$work/download" "$work/tool" "$work/package" "$out/payloads" "$out/evidence" "$out/sbom"
+          python3 scripts/fetch_verified.py --url https://static.rust-lang.org/dist/channel-rust-1.95.0.toml \
+            --output "$work/download/channel-rust-1.95.0.toml" --size 848342 \
+            --sha256 821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9
+          python3 scripts/fetch_verified.py \
+            --url https://github.com/rust-secure-code/cargo-auditable/releases/download/v0.7.5/cargo-auditable-aarch64-apple-darwin.tar.xz \
+            --output "$work/download/cargo-auditable-aarch64-apple-darwin.tar.xz" --size 384452 \
+            --sha256 92720fff2be27492ca7b216510a27e88a835b526e9e94e46bc36b502ba17d8f0
+          tar -tJf "$work/download/cargo-auditable-aarch64-apple-darwin.tar.xz" | grep -Fxq cargo-auditable
+          tar -xJf "$work/download/cargo-auditable-aarch64-apple-darwin.tar.xz" --no-same-owner --no-same-permissions -C "$work/tool" cargo-auditable
+          chmod 0755 "$work/tool/cargo-auditable"
+          export PATH="$work/tool:$PATH"
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup override set 1.95.0 --path upstream
+          {
+            echo 'buildCommand=cargo auditable build --locked --release --no-default-features -p midnight-node-toolkit'
+            echo 'features=no-default-features; erase-proof forbidden'
+            printf 'gitCommit='; git -C upstream rev-parse HEAD
+            printf 'gitTree='; git -C upstream rev-parse 'HEAD^{tree}'
+            printf 'cargoLockSha256='; shasum -a 256 upstream/Cargo.lock | cut -d' ' -f1
+            rustc +1.95.0 -Vv
+            cargo +1.95.0 -V
+            cargo auditable --version
+            sw_vers
+            uname -a
+            uname -m
+            xcodebuild -version
+            xcrun --sdk macosx --show-sdk-path
+            xcrun --sdk macosx --show-sdk-version
+            xcrun clang --version
+            printf 'MACOSX_DEPLOYMENT_TARGET=%s\nSOURCE_DATE_EPOCH=%s\nCARGO_INCREMENTAL=%s\n' "$MACOSX_DEPLOYMENT_TARGET" "$SOURCE_DATE_EPOCH" "$CARGO_INCREMENTAL"
+          } >"$out/evidence/build-and-system.log" 2>&1
+          (cd upstream && cargo auditable build --locked --release --no-default-features -p midnight-node-toolkit) 2>&1 | tee -a "$out/evidence/build-and-system.log"
+          cp upstream/target/release/midnight-node-toolkit "$work/package/midnight-node-toolkit"
+          chmod 0755 "$work/package/midnight-node-toolkit"
+          python3 scripts/validate_native.py --binary "$work/package/midnight-node-toolkit" --os macos --arch arm64 --runner-os macos --runner-arch arm64 \
+            --forbid-linkage-prefix /nix/store --forbid-linkage-prefix /opt/homebrew --forbid-linkage-prefix /usr/local
+          {
+            file "$work/package/midnight-node-toolkit"
+            lipo -archs "$work/package/midnight-node-toolkit"
+            otool -L "$work/package/midnight-node-toolkit"
+            vtool -show-build "$work/package/midnight-node-toolkit"
+          } >>"$out/evidence/build-and-system.log"
+          vtool -show-build "$work/package/midnight-node-toolkit" | grep -Eq 'minos[[:space:]]+13(\.0)?'
+          if otool -L "$work/package/midnight-node-toolkit" | grep -E '/nix/store|/opt/homebrew|/usr/local'; then exit 2; fi
+          python3 scripts/inspect_macos_signature.py --binary "$work/package/midnight-node-toolkit" --output "$out/evidence/macos-signature.json"
+          bash scripts/probe_phase4_toolkit.sh "$work/package/midnight-node-toolkit" "$work/probes"
+          for probe in "$work/probes"/*; do printf '\n== %s ==\n' "$(basename "$probe")"; cat "$probe"; done >"$out/evidence/probe.log"
+          python3 scripts/manifest_single_file.py --binary "$work/package/midnight-node-toolkit" --member-name midnight-node-toolkit \
+            --member-manifest "$out/evidence/member-manifest.json" --report "$out/evidence/native-build-report.json"
+          python3 scripts/package_deterministic.py --input-dir "$work/package" --members "$out/evidence/member-manifest.json" \
+            --output "$out/payloads/midnight-node-toolkit-macos-arm64-2.0.0-rc.4.zip"
+          jq '{schemaVersion:"archive-policy-v1",container:"zip",maxCompressedBytes:134217728,maxExpandedBytes:268435456,maxMembers:1,maxExpansionRatio:8,expectedMembers:.members}' \
+            "$out/evidence/member-manifest.json" >"$work/archive-policy.json"
+          python3 scripts/validate_archive.py --archive "$out/payloads/midnight-node-toolkit-macos-arm64-2.0.0-rc.4.zip" \
+            --policy "$work/archive-policy.json" --scratch-parent "$RUNNER_TEMP"
+          bash scripts/phase4_sbom.sh "$work/package/midnight-node-toolkit" "$out/sbom/midnight-node-toolkit-macos-arm64-2.0.0-rc.4" macos arm64
+          python3 scripts/emit_phase4_evidence.py --component catalog/components/midnight-node-toolkit-2.0.0-rc.4-macos-arm64.json \
+            --payload "$out/payloads/midnight-node-toolkit-macos-arm64-2.0.0-rc.4.zip" \
+            --member-manifest "$out/evidence/member-manifest.json" --source-report "$out/evidence/native-build-report.json" \
+            --probe-log "$out/evidence/probe.log" --system-log "$out/evidence/build-and-system.log" \
+            --sbom-spdx "$out/sbom/midnight-node-toolkit-macos-arm64-2.0.0-rc.4.spdx.json" \
+            --sbom-cyclonedx "$out/sbom/midnight-node-toolkit-macos-arm64-2.0.0-rc.4.cyclonedx.json" \
+            --signature "$out/evidence/macos-signature.json" \
+            --output "$out/evidence/payload-evidence.json" --checksums "$out/evidence/SHA256SUMS"
+      - name: Upload inert native build payload and evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase4-toolkit-macos-arm64-build${{ matrix.build_id }}
+          path: phase4-output-toolkit-macos-arm64-build${{ matrix.build_id }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  toolkit-macos-arm64-compare:
+    name: Toolkit macos/arm64 independent-build and clean-host gate
+    needs: toolkit-macos-arm64-build
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact forge source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Download independent build 1
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: phase4-toolkit-macos-arm64-build1
+          path: compare/build1
+      - name: Download independent build 2
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: phase4-toolkit-macos-arm64-build2
+          path: compare/build2
+      - name: Compare exact bytes and execute with Nix and Homebrew absent
+        run: |
+          set -euo pipefail
+          payload=midnight-node-toolkit-macos-arm64-2.0.0-rc.4.zip
+          test "$(shasum -a 256 "compare/build1/payloads/$payload" | cut -d' ' -f1)" = "$(shasum -a 256 "compare/build2/payloads/$payload" | cut -d' ' -f1)"
+          mkdir -p "$RUNNER_TEMP/phase4-compare/build1" "$RUNNER_TEMP/phase4-compare/build2" "$RUNNER_TEMP/phase4-clean-host"
+          ditto -x -k "compare/build1/payloads/$payload" "$RUNNER_TEMP/phase4-compare/build1"
+          ditto -x -k "compare/build2/payloads/$payload" "$RUNNER_TEMP/phase4-compare/build2"
+          test "$(shasum -a 256 "$RUNNER_TEMP/phase4-compare/build1/midnight-node-toolkit" | cut -d' ' -f1)" = "$(shasum -a 256 "$RUNNER_TEMP/phase4-compare/build2/midnight-node-toolkit" | cut -d' ' -f1)"
+          mkdir -p phase4-output-toolkit-macos-arm64/independent-build-evidence
+          cp -R compare/build1/. phase4-output-toolkit-macos-arm64/
+          cp compare/build2/evidence/payload-evidence.json phase4-output-toolkit-macos-arm64/independent-build-evidence/build2-payload-evidence.json
+          cp compare/build2/evidence/macos-signature.json phase4-output-toolkit-macos-arm64/independent-build-evidence/build2-macos-signature.json
+          ditto -x -k "compare/build1/payloads/$payload" "$RUNNER_TEMP/phase4-clean-host"
+          clean_bin="$RUNNER_TEMP/phase4-clean-host/midnight-node-toolkit"
+          test "$(lipo -archs "$clean_bin")" = arm64
+          test ! -e /nix/store
+          hidden_brew=
+          restore_brew() {
+            if [[ -n "$hidden_brew" && -e "$hidden_brew" ]]; then sudo mv "$hidden_brew" /opt/homebrew; fi
+          }
+          trap restore_brew EXIT
+          if [[ -e /opt/homebrew ]]; then
+            hidden_brew=/opt/homebrew.phase4-hidden
+            test ! -e "$hidden_brew"
+            sudo mv /opt/homebrew "$hidden_brew"
+          fi
+          test ! -e /opt/homebrew
+          clean_home="$RUNNER_TEMP/phase4-clean-home"
+          mkdir -p "$clean_home"
+          PATH=/usr/bin:/bin:/usr/sbin:/sbin HOME="$clean_home" LC_ALL=C TZ=UTC \
+            bash scripts/probe_phase4_toolkit.sh "$clean_bin" "$RUNNER_TEMP/phase4-clean-probes"
+          restore_brew
+          hidden_brew=
+          {
+            printf 'zipSha256=%s\n' "$(shasum -a 256 "compare/build1/payloads/$payload" | cut -d' ' -f1)"
+            printf 'binarySha256=%s\n' "$(shasum -a 256 "$clean_bin" | cut -d' ' -f1)"
+            echo 'independentBuildDigestMatch=true'
+            echo 'cleanRuntimeNixAbsent=true'
+            echo 'cleanRuntimeHomebrewAbsent=true'
+            echo 'cleanRuntimeProbe=PASS'
+            sw_vers
+            uname -m
+            otool -L "$clean_bin"
+          } >phase4-output-toolkit-macos-arm64/evidence/independent-build-and-clean-host.log
+          shasum -a 256 phase4-output-toolkit-macos-arm64/evidence/independent-build-and-clean-host.log \
+            >>phase4-output-toolkit-macos-arm64/evidence/SHA256SUMS
+      - name: Upload consolidated reproducible macOS payload and evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase4-toolkit-macos-arm64
+          path: phase4-output-toolkit-macos-arm64
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

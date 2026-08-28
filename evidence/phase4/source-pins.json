@@ -1,0 +1,185 @@
+{
+  "schemaVersion": "phase4-source-pins-v1",
+  "distributionTier": "development-only",
+  "releaseMutability": "mutable-warehouse",
+  "warning": "DEVELOPMENT ONLY — NOT FOR PRODUCTION USE. Release 0.3.120 is mutable; verify every downloaded SHA-256 against committed metadata before installation or execution.",
+  "node": {
+    "repository": "midnightntwrk/midnight-node",
+    "repositoryId": 987173205,
+    "repositoryNodeId": "R_kgDOOtcRVQ",
+    "tag": "node-2.0.0-rc.4",
+    "commitSha": "651e043b61ed445bf7a5066c60c87ea7bd606073",
+    "treeSha": "5c34f67538f20811d876f6463cf9aca5a3bc4fc9",
+    "releaseId": 351676950,
+    "releaseNodeId": "RE_kwDOOtcRVc4U9ioW",
+    "license": {
+      "spdx": "Apache-2.0",
+      "url": "https://raw.githubusercontent.com/midnightntwrk/midnight-node/651e043b61ed445bf7a5066c60c87ea7bd606073/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    "cargoLock": {
+      "url": "https://raw.githubusercontent.com/midnightntwrk/midnight-node/651e043b61ed445bf7a5066c60c87ea7bd606073/Cargo.lock",
+      "gitBlobSha": "d94267ba7457898ae1fec4317b60f1ac58c440e8",
+      "size": 502022,
+      "sha256": "5e95c05593b49eda1cd017e1ebbfafa8df321fb42c9a6011f3fba3e8491fed91"
+    },
+    "rustToolchain": {
+      "channel": "1.95",
+      "resolved": "1.95.0",
+      "sourcePath": "rust-toolchain.toml",
+      "gitBlobSha": "098758ffb9b17caadb283317cf54fc9788b74f6a",
+      "channelManifestUrl": "https://static.rust-lang.org/dist/channel-rust-1.95.0.toml",
+      "channelManifestSha256": "821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9"
+    },
+    "darwinLockedPackages": [
+      "core-foundation",
+      "core-foundation-sys",
+      "libc",
+      "mach2",
+      "psm",
+      "security-framework",
+      "security-framework-sys",
+      "stacker",
+      "system-configuration",
+      "system-configuration-sys"
+    ],
+    "assets": {
+      "nodeLinuxArm64": {
+        "id": 471563200,
+        "nodeId": "RA_kwDOOtcRVc4cG3vA",
+        "name": "midnight-node-2.0.0-rc.4-linux-arm64.tar.gz",
+        "url": "https://github.com/midnightntwrk/midnight-node/releases/download/node-2.0.0-rc.4/midnight-node-2.0.0-rc.4-linux-arm64.tar.gz",
+        "size": 83084349,
+        "sha256": "2bfd0f768a88d0d1d49cc97bfd6b9f4401646458887219e8c021bff8d9a9ae0b"
+      },
+      "toolkitLinuxAmd64": {
+        "id": 471563135,
+        "nodeId": "RA_kwDOOtcRVc4cG3t_",
+        "name": "midnight-node-toolkit-2.0.0-rc.4-linux-amd64.tar.gz",
+        "url": "https://github.com/midnightntwrk/midnight-node/releases/download/node-2.0.0-rc.4/midnight-node-toolkit-2.0.0-rc.4-linux-amd64.tar.gz",
+        "size": 50581636,
+        "sha256": "fdd9f6974c1c20928d3b9dc79c13c51bf984eb6dc4cdaf1978a1b037794402de"
+      },
+      "toolkitLinuxArm64": {
+        "id": 471563203,
+        "nodeId": "RA_kwDOOtcRVc4cG3vD",
+        "name": "midnight-node-toolkit-2.0.0-rc.4-linux-arm64.tar.gz",
+        "url": "https://github.com/midnightntwrk/midnight-node/releases/download/node-2.0.0-rc.4/midnight-node-toolkit-2.0.0-rc.4-linux-arm64.tar.gz",
+        "size": 48937006,
+        "sha256": "85513afbfe4dd3fccadde6ad5d7ccf82b8fa0c88d010445fc62c223c9ef078eb"
+      },
+      "checksums": {
+        "id": 471581595,
+        "nodeId": "RA_kwDOOtcRVc4cG8Ob",
+        "name": "SHA256SUMS",
+        "url": "https://github.com/midnightntwrk/midnight-node/releases/download/node-2.0.0-rc.4/SHA256SUMS",
+        "size": 795,
+        "sha256": "f75fc8e097fb6b77113a4d92814d783e01068bf4440a19bd4dc3e83ef96bc905"
+      }
+    },
+    "toolkitSource": {
+      "package": "midnight-node-toolkit",
+      "packageVersion": "2.0.0",
+      "releaseIdentity": "2.0.0-rc.4",
+      "manifestPath": "util/toolkit/Cargo.toml",
+      "manifestGitBlobSha": "3460851f619d7fd52f742d75e2940a873b1a4bd7",
+      "defaultFeatures": [],
+      "forbiddenFeatures": ["erase-proof"],
+      "buildCommand": "cargo auditable build --locked --release --no-default-features -p midnight-node-toolkit",
+      "macosDeploymentTarget": "13.0"
+    }
+  },
+  "cargoAuditable": {
+    "version": "0.7.5",
+    "commitSha": "9dc5ff28ff204b73eae91bd96cde4413fdcb70e0",
+    "releaseId": 327406646,
+    "releaseNodeId": "RE_kwDOCdwzys4Tg9Q2",
+    "asset": {
+      "id": 426566625,
+      "nodeId": "RA_kwDOCdwzys4ZbOPh",
+      "name": "cargo-auditable-aarch64-apple-darwin.tar.xz",
+      "url": "https://github.com/rust-secure-code/cargo-auditable/releases/download/v0.7.5/cargo-auditable-aarch64-apple-darwin.tar.xz",
+      "size": 384452,
+      "sha256": "92720fff2be27492ca7b216510a27e88a835b526e9e94e46bc36b502ba17d8f0"
+    }
+  },
+  "celestiaApp": {
+    "repository": "celestiaorg/celestia-app",
+    "repositoryId": 327696712,
+    "repositoryNodeId": "MDEwOlJlcG9zaXRvcnkzMjc2OTY3MTI=",
+    "tag": "v6.4.10",
+    "commitSha": "0b26ea0cf0b52406d6004cef4a36e13c30ddca85",
+    "treeSha": "2fd5a31e9cb4ff326b22a1a5156003311cbcf466",
+    "releaseId": 282480015,
+    "releaseNodeId": "RE_kwDOE4hBSM4Q1k2P",
+    "license": {
+      "spdx": "Apache-2.0",
+      "url": "https://raw.githubusercontent.com/celestiaorg/celestia-app/0b26ea0cf0b52406d6004cef4a36e13c30ddca85/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    "asset": {
+      "id": 349955149,
+      "nodeId": "RA_kwDOE4hBSM4U2-RN",
+      "name": "celestia-app_Linux_arm64.tar.gz",
+      "url": "https://github.com/celestiaorg/celestia-app/releases/download/v6.4.10/celestia-app_Linux_arm64.tar.gz",
+      "size": 180685852,
+      "sha256": "52cc9d59f9db5e3d2b7de91008c808f46ba319922db4a39404735b0a5dd6a76b"
+    },
+    "checksums": {
+      "id": 349955278,
+      "nodeId": "RA_kwDOE4hBSM4U2-TO",
+      "name": "checksums.txt",
+      "url": "https://github.com/celestiaorg/celestia-app/releases/download/v6.4.10/checksums.txt",
+      "size": 836,
+      "sha256": "960c02e97215f6c802e0992a64458b3f3df04cf2fb56f2f9e802a204a7a9e5c1"
+    }
+  },
+  "celestiaNode": {
+    "repository": "celestiaorg/celestia-node",
+    "repositoryId": 396780483,
+    "repositoryNodeId": "MDEwOlJlcG9zaXRvcnkzOTY3ODA0ODM=",
+    "tag": "v0.28.4",
+    "commitSha": "52cd8b52ec031bb9e3b4e476e0b159db2053384c",
+    "treeSha": "1f23daad3fe378c3ee51593d0c2e1d8a26f64515",
+    "releaseId": 265784044,
+    "releaseNodeId": "RE_kwDOF6Zjw84P14rs",
+    "license": {
+      "spdx": "Apache-2.0",
+      "url": "https://raw.githubusercontent.com/celestiaorg/celestia-node/52cd8b52ec031bb9e3b4e476e0b159db2053384c/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    "asset": {
+      "id": 321528010,
+      "nodeId": "RA_kwDOF6Zjw84TKiDK",
+      "name": "celestia-node_Linux_arm64.tar.gz",
+      "url": "https://github.com/celestiaorg/celestia-node/releases/download/v0.28.4/celestia-node_Linux_arm64.tar.gz",
+      "size": 71184641,
+      "sha256": "09eb0505c5265bb08dfd09f14aa397516efd89d7b8f120e06f133d9e387ad50c"
+    },
+    "checksums": {
+      "id": 321528021,
+      "nodeId": "RA_kwDOF6Zjw84TKiDV",
+      "name": "checksums.txt",
+      "url": "https://github.com/celestiaorg/celestia-node/releases/download/v0.28.4/checksums.txt",
+      "size": 400,
+      "sha256": "10b730253822bff3be9517f649d56b26ebfa192f23a40b9a0b1b2313a55425ec"
+    },
+    "checksumSignature": {
+      "id": 321528024,
+      "nodeId": "RA_kwDOF6Zjw84TKiDY",
+      "name": "checksums.txt.sig",
+      "url": "https://github.com/celestiaorg/celestia-node/releases/download/v0.28.4/checksums.txt.sig",
+      "size": 119,
+      "sha256": "7adf892e84c42c362d867e91348f6a8686904edad37aa07fc4e41570267efa5b"
+    }
+  },
+  "syft": {
+    "version": "1.51.1",
+    "releaseTag": "v1.51.1",
+    "assets": {
+      "linuxAmd64": {"id": 532610151, "name": "syft_1.51.1_linux_amd64.tar.gz", "size": 29203595, "sha256": "8fcb33017a0dc1058298c923c436d19dfa68ae93968e0b423248542e3afb9fc3"},
+      "linuxArm64": {"id": 532610134, "name": "syft_1.51.1_linux_arm64.tar.gz", "size": 26668605, "sha256": "a7fd2b784e6664acd44719270574f6cd8c6864fc2b1700bf9099bd1cccda7d7f"},
+      "macosArm64": {"id": 532610139, "name": "syft_1.51.1_darwin_arm64.tar.gz", "size": 27907057, "sha256": "ac063af3b9874769deb7ea1e6d76841e68f9e3bb50cd654226fc977de65532c1"}
+    }
+  }
+}

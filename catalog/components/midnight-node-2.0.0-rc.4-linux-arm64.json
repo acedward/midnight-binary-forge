@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "component-v1",
+  "componentId": "midnight-node-2.0.0-rc.4-linux-arm64",
+  "artifactKind": "software",
+  "family": "midnight-node",
+  "version": "2.0.0-rc.4",
+  "operation": "repackage",
+  "source": {
+    "repository": "midnightntwrk/midnight-node",
+    "commitSha": "651e043b61ed445bf7a5066c60c87ea7bd606073",
+    "treeSha": "5c34f67538f20811d876f6463cf9aca5a3bc4fc9",
+    "tag": "node-2.0.0-rc.4",
+    "asset": {
+      "id": 471563200,
+      "name": "midnight-node-2.0.0-rc.4-linux-arm64.tar.gz",
+      "url": "https://github.com/midnightntwrk/midnight-node/releases/download/node-2.0.0-rc.4/midnight-node-2.0.0-rc.4-linux-arm64.tar.gz",
+      "size": 83084349,
+      "sha256": "2bfd0f768a88d0d1d49cc97bfd6b9f4401646458887219e8c021bff8d9a9ae0b"
+    },
+    "lockedDependencies": true,
+    "toolchain": "forge-phase4-transformation-toolchain-v1@sha256:141140312f43ea071a0f6cc50bf6374f6c0e1437651089eecd65a6b9369b936e",
+    "toolchainDigest": "141140312f43ea071a0f6cc50bf6374f6c0e1437651089eecd65a6b9369b936e",
+    "buildFlags": ["verified-tar-gz-to-deterministic-zip", "rename-root-executable-to-versioned-family-name", "preserve-exact-res-tree", "zip-deflate-9", "zip-epoch-1980-01-01T00:00:00Z"]
+  },
+  "destination": {"repository": "effectstream/binaries", "tag": "0.3.120"},
+  "distributionTier": "development-only",
+  "releaseMutability": "mutable-warehouse",
+  "license": {
+    "spdx": "Apache-2.0",
+    "evidence": [{"url": "https://raw.githubusercontent.com/midnightntwrk/midnight-node/651e043b61ed445bf7a5066c60c87ea7bd606073/LICENSE", "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"}],
+    "redistributionStatement": "Apache-2.0 source license at the exact release commit; official release asset is transformed only into the established warehouse ZIP layout."
+  },
+  "naming": {
+    "outerTemplate": "midnight-node-{os}-{arch}-{version}.zip",
+    "container": "zip",
+    "appendOnly": true,
+    "members": [
+      {"path": "midnight-node-linux-arm64-2.0.0-rc.4", "type": "file", "mode": "0755"},
+      {"path": "res", "type": "directory", "mode": "0755"}
+    ],
+    "limits": {"maxCompressedBytes": 134217728, "maxExpandedBytes": 536870912, "maxMembers": 512, "maxExpansionRatio": 8}
+  },
+  "install": {"mode": "0755", "pathTemplate": "midnight-node-linux-arm64-2.0.0-rc.4"},
+  "targets": [{"os": "linux", "arch": "arm64", "tier": "desired", "runner": "ubuntu-24.04-arm", "native": true}],
+  "compatibility": {"kind": "software-runtime", "runtime": "Midnight node release identity 2.0.0-rc.4; resource tree is mandatory", "probes": ["version", "help", "start-with-res", "missing-res-rejection"]},
+  "signing": {"applicability": "not-applicable", "distributionSigningState": "NOT_APPLICABLE"},
+  "sbom": {"formats": ["spdx-json", "cyclonedx-json"]},
+  "validation": {"probes": ["sha256", "size", "archive-safety", "member-contract", "native-architecture", "native-linkage", "version", "help", "runtime-smoke"]}
+}
