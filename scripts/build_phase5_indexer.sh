@@ -81,15 +81,26 @@ export TZ=UTC
 if [[ "$PHASE5_OS" == linux ]]; then
   export RUSTFLAGS="--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols -C link-arg=-Wl,--build-id=sha1"
 else
-  # Apple's linker otherwise creates a random LC_UUID. Suppressing that optional
-  # load command makes two clean native jobs comparable; it does not sign the file.
-  export RUSTFLAGS="--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols -C link-arg=-Wl,-no_uuid"
+  # Apply path/strip policy to dependencies, including proc-macro dylibs. The
+  # final-only no_uuid flag is added below: applying it to proc macros makes
+  # Apple-Silicon dyld reject them before the product can be linked.
+  export RUSTFLAGS="--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols"
 fi
 
 (
   cd "$SOURCE"
   cargo build --locked --release -p indexer-standalone --features standalone
 ) 2>&1 | tee "$LOG"
+
+if [[ "$PHASE5_OS" == macos ]]; then
+  # Apple's linker otherwise creates a random LC_UUID. cargo rustc's trailing
+  # arguments affect the selected product target only, leaving host proc-macro
+  # dylibs valid. Suppressing this optional load command is not a signing step.
+  (
+    cd "$SOURCE"
+    cargo rustc --locked --release -p indexer-standalone --features standalone -- -C link-arg=-Wl,-no_uuid
+  ) 2>&1 | tee -a "$LOG"
+fi
 
 readonly BINARY="${SOURCE}/target/release/indexer-standalone"
 test -f "$BINARY"

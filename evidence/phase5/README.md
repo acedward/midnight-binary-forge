@@ -13,6 +13,10 @@ with an eight-connection pool, concurrent GraphQL requests, process liveness,
 termination, and restart. macOS jobs inspect the linker-produced signature but
 never invoke `codesign` in signing mode.
 
+On macOS, the deterministic-link flag that suppresses the linker's random
+`LC_UUID` is applied only to the final product through `cargo rustc`; host
+proc-macro dynamic libraries retain their normal linker contract.
+
 The initial macOS payloads are **DEVELOPMENT ONLY — NOT FOR PRODUCTION USE**
 and `UNSIGNED_DEVELOPMENT_ONLY`: there is no Developer ID and Gatekeeper may
 require an explicit user override. Evidence distinguishes an absent signature
