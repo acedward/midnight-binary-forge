@@ -499,13 +499,20 @@ def content_assets(buildset: dict[str, Any], content: Path) -> list[dict[str, An
     return rows
 
 
+def validate_staged_content_layout(content: Path, build_id: str) -> None:
+    expect(content.is_dir() and not content.is_symlink(), "candidate content root is unsafe")
+    expected = EXPECTED_PAYLOAD_NAMES | expected_evidence_names(build_id)
+    children = {path.name: path for path in content.iterdir()}
+    expect(len(expected) == 52 and set(children) == expected, "staged content must be the exact flat 31-payload plus 21-evidence closure")
+    for name, path in children.items():
+        validate_regular_file(path, "0644")
+        safe_basename(name, "candidate content name")
+
+
 def verify_candidate(buildset_path: Path, content: Path, root: Path = ROOT) -> dict[str, Any]:
     buildset, _ = validate_buildset(buildset_path, root)
-    expect(content.is_dir() and not content.is_symlink(), "candidate content root is unsafe")
-    for path in content.iterdir():
-        validate_regular_file(path, "0644")
-        safe_basename(path.name, "candidate content name")
     build_id = buildset["buildSetId"]
+    validate_staged_content_layout(content, build_id)
     source_name = f"source-manifest-{build_id}.json"
     checksums_name = f"sha256sums-{build_id}.txt"
     verify_checksums(content, checksums_name)

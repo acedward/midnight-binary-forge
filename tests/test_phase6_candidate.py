@@ -145,6 +145,23 @@ class Phase6BuildSetTest(unittest.TestCase):
             with self.assertRaisesRegex(ForgeError, "top-level layout"):
                 phase6_candidate.validate_input_layout(buildset, root)
 
+    def test_staged_content_layout_is_exact_and_rejects_artifact_name_nesting(self) -> None:
+        build_id = "initial-warehouse-v1"
+        names = phase6_candidate.EXPECTED_PAYLOAD_NAMES | phase6_candidate.expected_evidence_names(build_id)
+        self.assertEqual(len(names), 52)
+        with tempfile.TemporaryDirectory() as text:
+            root = Path(text)
+            for name in names:
+                (root / name).write_bytes(b"")
+                (root / name).chmod(0o644)
+            phase6_candidate.validate_staged_content_layout(root, build_id)
+            wrapper = root / "phase6-pr-verified-content-wrapper"
+            wrapper.mkdir()
+            for name in names:
+                (root / name).rename(wrapper / name)
+            with self.assertRaisesRegex(ForgeError, "exact flat"):
+                phase6_candidate.validate_staged_content_layout(root, build_id)
+
     def test_relative_cwd_buildset_path_resolves_inside_repository(self) -> None:
         previous = Path.cwd()
         try:

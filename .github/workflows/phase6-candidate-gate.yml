@@ -152,6 +152,7 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: ${{ github.run_id }}
           artifact-ids: ${{ needs.assemble-and-verify.outputs.artifact-id }}
+          merge-multiple: true
           path: verified-content
       - name: Stream and verify every payload/member without execution
         run: |

@@ -258,6 +258,7 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: ${{ github.run_id }}
           artifact-ids: ${{ needs.assemble-verified-content.outputs.staging-artifact-id }}
+          merge-multiple: true
           path: verified-content
       - name: Download assembly, draft, and protected-source evidence
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -312,6 +313,7 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: ${{ github.run_id }}
           artifact-ids: ${{ needs.assemble-verified-content.outputs.staging-artifact-id }}
+          merge-multiple: true
           path: verified-content
       - name: Download exact claims and draft handoffs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
