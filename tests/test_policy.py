@@ -232,6 +232,7 @@ class BoundaryPolicyTest(unittest.TestCase):
             bundle.write_bytes(b'{"fixture":"detached-sigstore-bundle"}\n')
             envelope = root / claims["transport"]["envelopeName"]
             environment = os.environ | {"FORGE_TEST_ALLOW_CONTEXT_BYPASS": "1"}
+            environment.pop("GITHUB_ACTIONS", None)
             materialized = subprocess.run(
                 [sys.executable, str(SCRIPTS / "materialize_envelope.py"), "--claims", str(claims_path), "--bundle", str(bundle), "--output", str(envelope)],
                 cwd=ROOT, capture_output=True, text=True, timeout=30, env=environment,
