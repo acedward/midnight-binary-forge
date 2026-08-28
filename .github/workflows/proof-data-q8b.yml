@@ -11,6 +11,8 @@ on:
       - 'scripts/proof_cache_bootstrap.py'
       - 'scripts/proof_data_pipeline.py'
       - 'scripts/proof_runtime_docker.py'
+      - 'scripts/stock_aa_k19_proof.mjs'
+      - 'scripts/stock_aa_k19_runtime.py'
       - 'scripts/validate_compact_direct.py'
       - 'tests/test_proof_data.py'
   push:
@@ -25,6 +27,8 @@ on:
       - 'scripts/proof_cache_bootstrap.py'
       - 'scripts/proof_data_pipeline.py'
       - 'scripts/proof_runtime_docker.py'
+      - 'scripts/stock_aa_k19_proof.mjs'
+      - 'scripts/stock_aa_k19_runtime.py'
       - 'scripts/validate_compact_direct.py'
       - 'tests/test_proof_data.py'
   workflow_dispatch:
@@ -151,6 +155,135 @@ jobs:
           path: |
             ${{ runner.temp }}/q8b-runtime-result-${{ matrix.arch }}.json
             ${{ runner.temp }}/compact-q8b-result-${{ matrix.arch }}.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+
+  stock-aa-k19-proof:
+    needs: acquire-reproduce
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact forge source without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Install exact Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.23.2'
+      - name: Install exact pnpm runtime
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+        with:
+          version: '11.24.0'
+          run_install: false
+      - name: Download exact inert Q8B acquisition
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: proof-data-q8b-${{ github.sha }}
+          path: ${{ runner.temp }}/q8b-candidate
+      - name: Check capacity and acquire exact stock-AA source and compiler
+        env:
+          RUNNER_TEMP_ROOT: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          python3 scripts/check_runner_capability.py --runner-label ubuntu-24.04 --expected-os linux --expected-arch amd64 --require-tool docker --require-tool git --min-free-gib 10
+          python3 scripts/proof_data_pipeline.py verify-output --output-root "$RUNNER_TEMP_ROOT/q8b-candidate"
+          aa_root="$RUNNER_TEMP_ROOT/stock-aa"
+          git init -q "$aa_root"
+          git -C "$aa_root" remote add origin https://github.com/acedward/AA-midnight-evm-experiment-v3.git
+          git -C "$aa_root" fetch -q --depth 1 origin 713a20215f33e02904ea5bd699b7de7f76562e1b
+          git -C "$aa_root" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$aa_root" rev-parse HEAD)" = 713a20215f33e02904ea5bd699b7de7f76562e1b
+          test "$(git -C "$aa_root" rev-parse 'HEAD^{tree}')" = b80be8377cf97913b9bfef0f3efe3870bdd56274
+          test -z "$(git -C "$aa_root" status --porcelain)"
+          cd "$aa_root"
+          printf '%s  %s\n' \
+            164cf112dc52ba88f1e16cfbd1e63c3bc6b2831539be12e7de229847dd7025c7 contracts/manager.compact \
+            50eafed342d1be2d19dcc72d51c98ce9f69eb41fb0fd47db1018125787424632 tests/package.json \
+            6bd6566c2883da39496e660afd0cdcfc89c0384f868f20d5b13e735dc43c7d90 tests/pnpm-lock.yaml \
+            4934d34892a92332f76bd3bf20eebc8b97f7ad3fcf9e6ff4de4c82fdb1d9991c tests/pnpm-workspace.yaml \
+            | sha256sum --check --strict
+          cd "$RUNNER_TEMP_ROOT"
+          curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+            --output compactc-0.33.0-rc.2.zip \
+            https://github.com/LFDT-Minokawa/compact/releases/download/compactc-v0.33.0-rc.2/compactc_v0.33.0-rc.2_x86_64-unknown-linux-musl.zip
+          printf '%s  %s\n' 3055ab92bbc8d5bb0d6282b661b83761d2a0de2ee37e21cf7107e25aaf2a9aad compactc-0.33.0-rc.2.zip | sha256sum --check --strict
+          mkdir -m 700 compactc-0.33.0-rc.2
+          unzip -q compactc-0.33.0-rc.2.zip -d compactc-0.33.0-rc.2
+          test -x compactc-0.33.0-rc.2/compactc
+          test -x compactc-0.33.0-rc.2/zkir
+      - name: Install only the exact frozen AA dependency graph
+        env:
+          RUNNER_TEMP_ROOT: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP_ROOT/stock-aa/tests"
+          pnpm install --frozen-lockfile
+          test "$(node --version)" = v22.23.2
+          test "$(pnpm --version)" = 11.24.0
+      - name: Generate the stock K19 artifacts from the fixed combined generation offline
+        env:
+          RUNNER_TEMP_ROOT: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          cache_parent="$RUNNER_TEMP_ROOT/stock-aa-proof-params"
+          mkdir -m 700 "$cache_parent"
+          python3 scripts/proof_cache_bootstrap.py bootstrap \
+            --manifest "$RUNNER_TEMP_ROOT/q8b-candidate/evidence/proof-cache-content-manifest-v1.json" \
+            --payload-dir "$RUNNER_TEMP_ROOT/q8b-candidate/payloads" \
+            --parent "$cache_parent" --readers-stopped
+          combined_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["combinedManifestSha256"])' "$RUNNER_TEMP_ROOT/q8b-candidate/evidence/proof-cache-content-manifest-v1.json")"
+          fixed_generation="$cache_parent/generations/$combined_digest"
+          test -f "$fixed_generation/bls_midnight_2p19"
+          mkdir -p "$RUNNER_TEMP_ROOT/stock-aa/tests/generated/manager-keys"
+          docker pull docker.io/library/python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7
+          docker run --rm --network none \
+            --mount "type=bind,src=$RUNNER_TEMP_ROOT/compactc-0.33.0-rc.2,dst=/tool,readonly" \
+            docker.io/library/python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7 \
+            /tool/compactc --version | grep -Fx '0.33.0'
+          docker run --rm --network none \
+            --mount "type=bind,src=$RUNNER_TEMP_ROOT/compactc-0.33.0-rc.2,dst=/tool,readonly" \
+            docker.io/library/python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7 \
+            /tool/compactc --language-version | grep -Fx '0.25.0'
+          docker run --rm --network none --cpus 4 --memory 12g --memory-swap 12g \
+            --env RAYON_NUM_THREADS=4 --env MIDNIGHT_PP=/proof-params \
+            --mount "type=bind,src=$RUNNER_TEMP_ROOT/compactc-0.33.0-rc.2,dst=/tool,readonly" \
+            --mount "type=bind,src=$RUNNER_TEMP_ROOT/stock-aa/contracts,dst=/contracts,readonly" \
+            --mount "type=bind,src=$fixed_generation,dst=/proof-params,readonly" \
+            --mount "type=bind,src=$RUNNER_TEMP_ROOT/stock-aa/tests/generated/manager-keys,dst=/out" \
+            docker.io/library/python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7 \
+            /tool/compactc --feature-zkir-v3 /contracts/manager.compact /out
+          cd "$RUNNER_TEMP_ROOT/stock-aa/tests/generated/manager-keys"
+          printf '%s  %s\n' \
+            382ae4325f239a3e4e9ac292cacbb1ed1eceec71112eefa2f7557f6ecbe6865a keys/execute.prover \
+            e24ba5cf69bd494765b5daa79da9b6da55a5385e625b060467184b156035fd3b keys/execute.verifier \
+            ab697f15c424d5c5d47c3dbfe114521611bcd28e3c9655d84d388b5f0f16a06b zkir/execute.bzkir \
+            bd8e655895e883a78525dce673ca398d45af84cc21e4c713860b39d5fd7774ec zkir/execute.zkir \
+            9ea2d64810852f853461d90a50090a1a71b4e065256c1c2068e25d1a37b2da33 compiler/contract-manifest.json \
+            | sha256sum --check --strict
+      - name: Execute real rc.5 stock-AA K19 proof with origin egress blocked
+        env:
+          RUNNER_TEMP_ROOT: ${{ runner.temp }}
+          RUN_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          docker pull docker.io/library/node@sha256:4d676821dff059fd00d277ee4261ef34ea712317fed0737c03941481b5760c96
+          docker pull midnightntwrk/proof-server@sha256:4f02ca2734649eb238d13924df299b1c82bd5546ec928c5d67bdd0ce86dd0bd1
+          mkdir -m 700 "$RUNNER_TEMP_ROOT/stock-aa-runtime-work"
+          python3 scripts/stock_aa_k19_runtime.py \
+            --candidate-root "$RUNNER_TEMP_ROOT/q8b-candidate" \
+            --aa-root "$RUNNER_TEMP_ROOT/stock-aa" \
+            --work-root "$RUNNER_TEMP_ROOT/stock-aa-runtime-work" \
+            --run-key "$RUN_KEY" \
+            --output "$RUNNER_TEMP_ROOT/stock-aa-k19-runtime.json"
+      - name: Retain non-secret stock-AA K19 proof evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: stock-aa-k19-proof-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/stock-aa-k19-runtime.json
+            ${{ runner.temp }}/stock-aa-runtime-work/stock-aa-k19-node.json
           if-no-files-found: error
           retention-days: 14
           compression-level: 9

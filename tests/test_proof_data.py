@@ -101,6 +101,37 @@ def make_fixture(root: Path, salt: bytes = b"a") -> tuple[Path, Path, str]:
 
 
 class ProofDataPolicyTest(unittest.TestCase):
+    def test_stock_aa_k19_fixture_is_exact_non_secret_and_offline(self) -> None:
+        fixture = json.loads((ROOT / "catalog/proof-data/stock-aa-k19-v1.json").read_text())
+        self.assertEqual(fixture["schemaVersion"], "stock-aa-k19-input-v1")
+        self.assertEqual(fixture["source"]["commit"], "713a20215f33e02904ea5bd699b7de7f76562e1b")
+        self.assertEqual(fixture["source"]["tree"], "b80be8377cf97913b9bfef0f3efe3870bdd56274")
+        self.assertTrue(fixture["toolchain"]["release"]["immutable"])
+        self.assertEqual(fixture["toolchain"]["release"]["asset"]["sha256"], "3055ab92bbc8d5bb0d6282b661b83761d2a0de2ee37e21cf7107e25aaf2a9aad")
+        self.assertEqual(fixture["circuit"]["id"], "execute")
+        self.assertEqual(fixture["circuit"]["k"], 19)
+        artifacts = {row["path"]: row for row in fixture["circuit"]["artifacts"]}
+        self.assertEqual(artifacts["keys/execute.prover"]["size"], 1141041970)
+        self.assertEqual(artifacts["keys/execute.prover"]["sha256"], "382ae4325f239a3e4e9ac292cacbb1ed1eceec71112eefa2f7557f6ecbe6865a")
+        self.assertEqual(artifacts["zkir/execute.bzkir"]["sha256"], "ab697f15c424d5c5d47c3dbfe114521611bcd28e3c9655d84d388b5f0f16a06b")
+        self.assertEqual(fixture["generator"]["preimageBytes"], 707)
+        self.assertEqual(fixture["generator"]["preimageSha256"], "1326dcdf0e667b33571ef2f622b7ed016a34ba93f203642fa3bc3aeca0d6aa26")
+        self.assertFalse(fixture["scope"]["capturedRequestAllowed"])
+        self.assertFalse(fixture["scope"]["walletOrLiveStateAllowed"])
+        self.assertEqual(fixture["scope"]["k18"], "not-applicable-disabled-overlay-not-restored-or-audited")
+
+        generator = (ROOT / "scripts/stock_aa_k19_proof.mjs").read_text()
+        runtime = (ROOT / "scripts/stock_aa_k19_runtime.py").read_text()
+        workflow = (ROOT / ".github/workflows/proof-data-q8b.yml").read_text()
+        self.assertNotIn("process.env", generator)
+        self.assertIn('capturedRequest: false', generator)
+        self.assertIn('"--network", network', runtime)
+        self.assertIn('"--internal", network', runtime)
+        self.assertIn("--network none", workflow)
+        self.assertIn("stock-aa-k19-proof:", workflow)
+        self.assertIn("POST /k", json.dumps(fixture))
+        self.assertIn("POST /prove", json.dumps(fixture))
+
     def test_generated_catalog_is_canonical_and_all_components_validate(self) -> None:
         outputs = generate_proof_catalog.generated_files()
         self.assertEqual(len(outputs), 23)
