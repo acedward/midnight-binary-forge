@@ -236,6 +236,10 @@ class ProofDataPolicyTest(unittest.TestCase):
         self.assertEqual(content["srsGenerations"][1]["k"], list(range(1, 20)))
         self.assertIsNone(content["srsGenerations"][0]["rootPotSha256"])
         self.assertEqual(content["srsGenerations"][1]["rootPotSha256"], generate_proof_catalog.ROOT_POT)
+        content_paths = {row["path"] for row in content["files"]}
+        negative = manifest["proofServerCompatibility"]["rejectedStatic9"]["diagnosticContract"]
+        self.assertNotIn(negative["derivedMissingPath"], content_paths)
+        self.assertIn(negative["static9PeerPath"], content_paths)
         for path in sorted((ROOT / "catalog/components").glob("midnight-*.json")):
             validate_catalog.validate_component(json.loads(path.read_text()))
 
@@ -350,16 +354,22 @@ class ProofDataPolicyTest(unittest.TestCase):
             "os": "linux",
             "architecture": "amd64",
         }
-        with self.assertRaisesRegex(ForgeError, "source-derived"):
+        with self.assertRaisesRegex(ForgeError, "startup/read-only"):
             proof_runtime_docker.static10_rejection_diagnostic("unrelated error", "exited 1", negative, image, "9.0.0-rc.7")
-        with self.assertRaisesRegex(ForgeError, "source-derived"):
-            proof_runtime_docker.static10_rejection_diagnostic("zswap/10/output.prover", "exited 1", negative, image, "9.0.0-rc.7")
-        required = negative["diagnosticContract"]["requiredFailurePath"]
-        logs = f"failed to fetch https://srs.midnight.network/{required}"
+        with self.assertRaisesRegex(ForgeError, "startup/read-only"):
+            proof_runtime_docker.static10_rejection_diagnostic('Error: Os { code: 30, kind: ReadOnlyFilesystem, message: "Read-only file system" }', "exited 1", negative, image, "9.0.0-rc.7")
+        with self.assertRaisesRegex(ForgeError, "startup/read-only"):
+            proof_runtime_docker.static10_rejection_diagnostic("\n".join(reversed(negative["diagnosticContract"]["requiredLogTokens"])), "exited 1", negative, image, "9.0.0-rc.7")
+        logs = "\n".join(negative["diagnosticContract"]["requiredLogTokens"])
         evidence = proof_runtime_docker.static10_rejection_diagnostic(logs, "exited 1", negative, image, "9.0.0-rc.7")
-        self.assertEqual(evidence["requiredFailurePath"], required)
-        self.assertEqual(evidence["observedMissingPaths"], [required])
+        self.assertEqual(evidence["derivedMissingPath"], "zswap/10/spend.prover")
+        self.assertEqual(evidence["observedLogTokens"], negative["diagnosticContract"]["requiredLogTokens"])
         self.assertEqual(len(evidence["canonicalSha256"]), 64)
+
+        weakened = json.loads((ROOT / "catalog/proof-data/q8b-v1.json").read_text())
+        weakened["proofServerCompatibility"]["rejectedStatic9"]["diagnosticContract"]["requiredLogTokens"] = ["Read-only file system"]
+        with self.assertRaisesRegex(ForgeError, "diagnostic contract drift"):
+            proof_data_pipeline.validate_manifest(weakened)
 
     def test_bootstrap_atomic_noop_repair_pointer_failure_and_gc(self) -> None:
         with tempfile.TemporaryDirectory() as text:

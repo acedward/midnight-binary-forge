@@ -100,10 +100,9 @@ def inspect_image_identity(image_digest: str, expected_arch: str) -> dict:
 
 def static10_rejection_diagnostic(logs: str, state: str, negative: dict, image_identity: dict, observed_version: str) -> dict:
     contract = negative["diagnosticContract"]
-    requested = contract["requestedProverPaths"]
-    required = contract["requiredFailurePath"]
-    observed = [path for path in requested if path in logs]
-    expect(required in observed, f"rc.7 rejection lacks exact source-derived propagated static-10 path diagnostic: {required}; observed={observed}")
+    tokens = contract["requiredLogTokens"]
+    positions = [logs.find(token) for token in tokens]
+    expect(all(position >= 0 for position in positions) and positions == sorted(positions), "rc.7 rejection lacks the ordered exact startup/read-only-generation diagnostic")
     parts = state.split()
     expect(len(parts) == 2 and parts[0] in {"exited", "dead"} and parts[1].isdigit() and int(parts[1]) != 0, "rc.7 negative must terminate non-zero after the static-10 diagnostic")
     expect(observed_version == negative["version"], "rc.7 image version differs from the source-pinned negative contract")
@@ -115,10 +114,12 @@ def static10_rejection_diagnostic(logs: str, state: str, negative: dict, image_i
         "proofServerVersion": observed_version,
         "requiresLedgerStaticSemver": negative["requiresLedgerStaticSemver"],
         "cacheNamespace": negative["cacheNamespace"],
-        "requestedProverPaths": requested,
-        "requiredFailurePath": required,
-        "failurePropagation": contract["failurePropagation"],
-        "observedMissingPaths": observed,
+        "requestedProverPaths": contract["requestedProverPaths"],
+        "derivedMissingPath": contract["derivedMissingPath"],
+        "static9PeerPath": contract["static9PeerPath"],
+        "derivation": contract["derivation"],
+        "requiredLogTokens": tokens,
+        "observedLogTokens": tokens,
         "containerState": state,
         "image": image_identity,
         "logSha256": hashlib.sha256(logs.encode()).hexdigest(),
@@ -154,6 +155,13 @@ def runtime_gate(candidate_root: Path, work_root: Path, os_name: str, arch: str,
     proof_set = load_json(ROOT / "catalog/proof-data/q8b-v1.json")
     positive = proof_set["proofServerCompatibility"]["accepted"]
     negative = proof_set["proofServerCompatibility"]["rejectedStatic9"]
+    diagnostic_contract = negative["diagnosticContract"]
+    admitted_paths = {row["path"] for row in content["files"]}
+    expect(
+        all(path not in admitted_paths for path in diagnostic_contract["requestedProverPaths"])
+        and diagnostic_contract["static9PeerPath"] in admitted_paths,
+        "trusted Q8B content does not prove exact static-10 absence with its static-9 peer present",
+    )
     expected_rc7 = negative["images"][f"linux/{arch}"]
     expect(digest == proof_set["cacheContract"]["expectedCombinedManifestSha256"], "candidate generation differs from the reviewed Q8B contract")
     volume = f"q8b-proof-{run_key}-{arch}".lower().replace("_", "-")
@@ -344,8 +352,19 @@ def runtime_gate(candidate_root: Path, work_root: Path, os_name: str, arch: str,
             time.sleep(1)
         _, _, logs = container_logs(negative_name)
         expect(not became_ready, "rc.7/static-10 incorrectly accepted static-9")
-        run(["docker", "rm", "--force", negative_name], timeout=30, check=False)
+        negative_mount = inspect_reader(negative_name, fixed)
         diagnostic = static10_rejection_diagnostic(logs, state, negative, image_identity, negative_version)
+        diagnostic["trustedContent"] = {
+            "combinedManifestSha256": digest,
+            "requestedProverPathsAbsent": True,
+            "derivedMissingPath": diagnostic_contract["derivedMissingPath"],
+            "static9PeerPath": diagnostic_contract["static9PeerPath"],
+            "static9PeerPresent": True,
+        }
+        diagnostic["mount"] = negative_mount
+        diagnostic.pop("canonicalSha256")
+        diagnostic["canonicalSha256"] = hashlib.sha256(canonical_bytes(diagnostic)).hexdigest()
+        run(["docker", "rm", "--force", negative_name], timeout=30, check=False)
 
         result = {
             "schemaVersion": "proof-runtime-docker-result-v1",

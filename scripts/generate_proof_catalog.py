@@ -45,7 +45,12 @@ RC7_REQUESTED_PROVER_PATHS = [
     "zswap/10/sign.prover",
     "dust/10/spend.prover",
 ]
-RC7_REQUIRED_FAILURE_PATH = RC7_REQUESTED_PROVER_PATHS[0]
+RC7_DERIVED_MISSING_PATH = RC7_REQUESTED_PROVER_PATHS[0]
+RC7_STATIC9_PEER_PATH = RC7_DERIVED_MISSING_PATH.replace("/10/", "/9/")
+RC7_REQUIRED_LOG_TOKENS = [
+    "Ensuring zswap key material is available...",
+    'Error: Os { code: 30, kind: ReadOnlyFilesystem, message: "Read-only file system" }',
+]
 
 
 def exact_rc5_consumer() -> dict:
@@ -284,9 +289,11 @@ def proof_set(pins: dict, member_digest: str, zip_layout_digest: str) -> dict:
                     "schemaVersion": "rc7-static10-diagnostic-contract-v1",
                     "sourceFiles": RC7_DIAGNOSTIC_SOURCES,
                     "requestedProverPaths": RC7_REQUESTED_PROVER_PATHS,
-                    "requiredFailurePath": RC7_REQUIRED_FAILURE_PATH,
-                    "failurePropagation": "proof-server-join-all-input-order-first-error",
-                    "reason": "source-pinned-static10-propagated-path-missing-from-static9-generation",
+                    "derivedMissingPath": RC7_DERIVED_MISSING_PATH,
+                    "static9PeerPath": RC7_STATIC9_PEER_PATH,
+                    "derivation": "source-static-version-10-first-zswap-spend-create-dir-on-read-only-generation",
+                    "requiredLogTokens": RC7_REQUIRED_LOG_TOKENS,
+                    "reason": "source-pinned-static10-missing-from-read-only-static9-generation",
                 },
             },
         },
