@@ -1,0 +1,82 @@
+name: Phase 5 native indexer candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase5-indexer-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  native-build:
+    name: ${{ matrix.os }}/${{ matrix.arch }} clean build ${{ matrix.attempt }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: linux, arch: amd64, attempt: 1, runner: ubuntu-24.04}
+          - {os: linux, arch: amd64, attempt: 2, runner: ubuntu-24.04}
+          - {os: linux, arch: arm64, attempt: 1, runner: ubuntu-24.04-arm}
+          - {os: linux, arch: arm64, attempt: 2, runner: ubuntu-24.04-arm}
+          - {os: macos, arch: amd64, attempt: 1, runner: macos-15-intel}
+          - {os: macos, arch: amd64, attempt: 2, runner: macos-15-intel}
+          - {os: macos, arch: arm64, attempt: 1, runner: macos-15}
+          - {os: macos, arch: arm64, attempt: 2, runner: macos-15}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    steps:
+      - name: Check out forge policy and harness
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Install exact Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: 1.95.0
+      - name: Install native runtime probes (Linux only)
+        if: ${{ matrix.os == 'linux' }}
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends binutils curl file jq sqlite3
+      - name: Build, inspect, exercise, and package
+        env:
+          PHASE5_OS: ${{ matrix.os }}
+          PHASE5_ARCH: ${{ matrix.arch }}
+          PHASE5_ATTEMPT: ${{ matrix.attempt }}
+          PHASE5_RUNNER_LABEL: ${{ matrix.runner }}
+        run: bash scripts/build_phase5_indexer.sh
+      - name: Upload inert native result
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase5-indexer-${{ matrix.os }}-${{ matrix.arch }}-build${{ matrix.attempt }}
+          path: stage/${{ matrix.os }}-${{ matrix.arch }}-build${{ matrix.attempt }}/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  reproducibility-gate:
+    name: Compare two clean jobs per target
+    needs: native-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact forge verifier
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Download all eight native results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: phase5-indexer-*
+          path: downloaded
+      - name: Require exact executable and ZIP identity
+        run: python3 scripts/compare_phase5_indexer_builds.py --input downloaded --output verified-phase5-indexer
+      - name: Upload verified Phase-5 payload/evidence candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase5-indexer-verified-candidate-${{ github.sha }}
+          path: verified-phase5-indexer/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
