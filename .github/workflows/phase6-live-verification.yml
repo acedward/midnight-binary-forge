@@ -1,0 +1,67 @@
+name: Phase 6 published-candidate live verification
+
+on:
+  workflow_run:
+    workflows: ['Immutable forge candidate']
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  attestations: read
+
+concurrency:
+  group: phase6-published-candidate-live-verification
+  cancel-in-progress: false
+
+jobs:
+  verify-published-candidate:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact candidate commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Download exact post-publication handoff
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          repository: acedward/midnight-binary-forge
+          run-id: ${{ github.event.workflow_run.id }}
+          name: published-candidate-initial-warehouse-v1
+          path: handoff
+      - name: Download released envelope and attestation bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="$(jq -r '.tag' handoff/published.json)"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'promotion-envelope-initial-warehouse-v1.json' --pattern 'attestation-initial-warehouse-v1.sigstore.json' --dir transport
+      - name: Verify attestation, immutable release, and independent byte read-back
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, 'scripts')
+          import canonical_json
+          envelope = canonical_json.load_json(Path('transport/promotion-envelope-initial-warehouse-v1.json'))
+          Path('promotion-claims-initial-warehouse-v1').write_bytes(canonical_json.canonical_bytes(envelope['claims']))
+          PY
+          gh attestation verify promotion-claims-initial-warehouse-v1 --repo "$GITHUB_REPOSITORY" --bundle transport/attestation-initial-warehouse-v1.sigstore.json --predicate-type 'https://github.com/acedward/midnight-binary-forge/predicates/promotion-envelope/v1'
+          python3 scripts/github_phase6.py capture-live --envelope transport/promotion-envelope-initial-warehouse-v1.json --bundle transport/attestation-initial-warehouse-v1.sigstore.json --run-id "${{ github.event.workflow_run.id }}" --output live-evidence.json
+          python3 scripts/canonical_json.py verify-live transport/promotion-envelope-initial-warehouse-v1.json transport/attestation-initial-warehouse-v1.sigstore.json live-evidence.json --require-staging-live
+      - name: Retain canonical live verification evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase6-published-live-evidence-${{ github.event.workflow_run.id }}
+          path: live-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+          overwrite: false

@@ -8,7 +8,7 @@ import hashlib
 import json
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from forge_io import ForgeError, expect, load_json, safe_basename, sha256_file
@@ -265,12 +265,39 @@ def validate_build_set(build_set: dict[str, Any], root: Path, require_source_hea
         import subprocess
 
         result = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=False, capture_output=True, text=True, timeout=10)
-        expect(result.returncode == 0 and result.stdout.strip() == build_set["sourceFullSha"], "build set is not bound to current full source HEAD")
+        expect(result.returncode == 0 and len(result.stdout.strip()) == 40, "cannot resolve current full source HEAD")
+        ancestor = subprocess.run(
+            ["git", "-C", str(root), "merge-base", "--is-ancestor", build_set["sourceFullSha"], result.stdout.strip()],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        expect(ancestor.returncode == 0, "build-set reviewed input baseline is not reachable from current full source HEAD")
     components = load_components(root, build_set)
+    input_artifacts = build_set["inputArtifacts"]
+    input_keys = [row["key"] for row in input_artifacts]
+    expect(input_keys == sorted(input_keys), "input artifact keys must be lexically sorted")
+    expect(len(input_keys) == len(set(input_keys)), "duplicate input artifact key")
+    expect(len({row["artifactId"] for row in input_artifacts}) == len(input_artifacts), "duplicate input artifact ID")
+    for row in input_artifacts:
+        expect(row["workflowPath"] in {
+            ".github/workflows/proof-data-q8b.yml",
+            ".github/workflows/phase4-payloads.yml",
+            ".github/workflows/phase5-indexer.yml",
+        }, "unapproved input workflow")
+        expect(row["sourceHeadSha"] != "0" * 40, "input source head cannot be a sentinel SHA")
+    input_key_set = set(input_keys)
     declared_semantics: dict[tuple[str, str, str, str], str] = {}
+    family_templates: dict[tuple[str, str], str] = {}
     for component in components.values():
         if component["artifactKind"] != "software":
             continue
+        family_key = (component["family"], component["version"])
+        template = component["naming"]["outerTemplate"]
+        prior_template = family_templates.get(family_key)
+        expect(prior_template is None or prior_template == template, f"software family/version has conflicting public name templates: {family_key}")
+        family_templates[family_key] = template
         for target in component["targets"]:
             key = (component["family"], component["version"], target["os"], target["arch"])
             prior = declared_semantics.get(key)
@@ -284,9 +311,19 @@ def validate_build_set(build_set: dict[str, Any], root: Path, require_source_hea
     candidate_coverage: dict[tuple[str, str, str, str], tuple[str, str]] = {}
     for payload in payloads:
         safe_basename(payload["name"], "payload name")
+        expect(payload["sourceArtifactKey"] in input_key_set, "payload references unknown input artifact")
+        source_path = PurePosixPath(payload["sourcePath"])
+        expect(
+            payload["sourcePath"] == source_path.as_posix()
+            and not source_path.is_absolute()
+            and all(part not in {"", ".", ".."} for part in source_path.parts),
+            "unsafe payload source path",
+        )
         expect(payload["componentId"] in components, f"payload references unknown component: {payload['componentId']}")
         component = components[payload["componentId"]]
         expect(payload["artifactKind"] == component["artifactKind"], "payload/component artifactKind mismatch")
+        expect(payload["container"] == component["naming"]["container"], "payload/component archive container mismatch")
+        expect(payload["installMode"] == component["install"]["mode"], "payload/component install mode mismatch")
         if payload["artifactKind"] == "software":
             pair = (payload["os"], payload["arch"])
             target = next((row for row in component["targets"] if (row["os"], row["arch"]) == pair), None)
@@ -328,19 +365,12 @@ def validate_build_set(build_set: dict[str, Any], root: Path, require_source_hea
         expect(asset.get("digest") == f"sha256:{row['sha256']}", "existing coverage asset digest mismatch")
         key = (row["family"], row["version"], row["os"], row["arch"])
         expect(key not in all_coverage, f"duplicate software semantic tuple across candidate/existing coverage: {key}")
-        component = next(
-            (
-                value
-                for value in components.values()
-                if value["artifactKind"] == "software"
-                and value["family"] == row["family"]
-                and value["version"] == row["version"]
-                and any((target["os"], target["arch"]) == (row["os"], row["arch"]) for target in value["targets"])
-            ),
-            None,
-        )
-        expect(component is not None, "existing coverage tuple is not declared by a pinned component")
-        expected_name = render_name(component["naming"]["outerTemplate"], version=row["version"], os_name=row["os"], arch=row["arch"])
+        template = family_templates.get((row["family"], row["version"]))
+        expect(template is not None, "existing coverage family/version is not declared by a pinned component")
+        # A legacy exact warehouse asset may prove coverage even when no new-build component
+        # truthfully claims that old target.  The reviewed family/version naming contract,
+        # pinned snapshot identity and exact asset digest remain mandatory.
+        expected_name = render_name(template, version=row["version"], os_name=row["os"], arch=row["arch"])
         expect(row["name"] == expected_name, "existing coverage asset name is not the component's canonical rendered name")
         all_coverage.add(key)
 
