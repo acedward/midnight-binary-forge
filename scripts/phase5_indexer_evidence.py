@@ -38,6 +38,16 @@ def spdx_id(package_id: str) -> str:
     return "SPDXRef-Package-" + hashlib.sha256(package_id.encode()).hexdigest()[:24]
 
 
+def stable_package_ref(package: dict[str, object]) -> str:
+    # Cargo uses absolute file:// paths in IDs for workspace packages. Those
+    # differ between independent jobs and must never leak into a reproducible
+    # SBOM identity. Registry/git source plus name/version is stable; path
+    # packages are bound to the already-pinned indexer source commit.
+    origin = package.get("source") or f"git+https://github.com/midnightntwrk/midnight-indexer@{SOURCE_COMMIT}"
+    key = f"{package['name']}@{package['version']}|{origin}"
+    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, key)}"
+
+
 def purl(package: dict[str, object]) -> str:
     return f"pkg:cargo/{package['name']}@{package['version']}"
 
@@ -45,6 +55,7 @@ def purl(package: dict[str, object]) -> str:
 def generate_sboms(metadata: dict[str, object], os_name: str, arch: str, output: Path) -> tuple[Path, Path]:
     packages = sorted(metadata["packages"], key=lambda row: row["id"])
     package_by_id = {row["id"]: row for row in packages}
+    stable_by_id = {row["id"]: stable_package_ref(row) for row in packages}
     root = next(row for row in packages if row["name"] == "indexer-standalone" and row["version"] == VERSION)
     spdx_packages = []
     cdx_components = []
@@ -53,7 +64,7 @@ def generate_sboms(metadata: dict[str, object], os_name: str, arch: str, output:
         source = package.get("source") or "NOASSERTION"
         spdx_packages.append(
             {
-                "SPDXID": spdx_id(package["id"]),
+                "SPDXID": spdx_id(stable_by_id[package["id"]]),
                 "name": package["name"],
                 "versionInfo": package["version"],
                 "downloadLocation": source,
@@ -68,7 +79,7 @@ def generate_sboms(metadata: dict[str, object], os_name: str, arch: str, output:
         )
         component = {
             "type": "application" if package["id"] == root["id"] else "library",
-            "bom-ref": package["id"],
+            "bom-ref": stable_by_id[package["id"]],
             "name": package["name"],
             "version": package["version"],
             "purl": purl(package),
@@ -77,20 +88,20 @@ def generate_sboms(metadata: dict[str, object], os_name: str, arch: str, output:
             component["licenses"] = [{"expression": package["license"]}]
         cdx_components.append(component)
 
-    relationships = [{"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": spdx_id(root["id"])}]
+    relationships = [{"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": spdx_id(stable_by_id[root["id"]])}]
     dependencies = []
     resolve = metadata.get("resolve") or {"nodes": []}
     for node in sorted(resolve["nodes"], key=lambda row: row["id"]):
         if node["id"] not in package_by_id:
             continue
         depends_on = sorted(dep for dep in node["dependencies"] if dep in package_by_id)
-        dependencies.append({"ref": node["id"], "dependsOn": depends_on})
+        dependencies.append({"ref": stable_by_id[node["id"]], "dependsOn": [stable_by_id[dependency] for dependency in depends_on]})
         for dependency in depends_on:
             relationships.append(
                 {
-                    "spdxElementId": spdx_id(node["id"]),
+                    "spdxElementId": spdx_id(stable_by_id[node["id"]]),
                     "relationshipType": "DEPENDS_ON",
-                    "relatedSpdxElement": spdx_id(dependency),
+                    "relatedSpdxElement": spdx_id(stable_by_id[dependency]),
                 }
             )
 
@@ -113,7 +124,7 @@ def generate_sboms(metadata: dict[str, object], os_name: str, arch: str, output:
         "metadata": {
             "timestamp": CREATED,
             "tools": {"components": [{"type": "application", "name": "midnight-binary-forge-phase5-indexer-evidence", "version": "1"}]},
-            "component": {"type": "application", "bom-ref": root["id"], "name": root["name"], "version": root["version"], "purl": purl(root)},
+            "component": {"type": "application", "bom-ref": stable_by_id[root["id"]], "name": root["name"], "version": root["version"], "purl": purl(root)},
             "properties": [{"name": "forge:target", "value": f"{os_name}/{arch}"}],
         },
         "components": cdx_components,

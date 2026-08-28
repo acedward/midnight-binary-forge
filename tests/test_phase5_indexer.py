@@ -13,6 +13,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import phase5_indexer_evidence  # noqa: E402
 
 
 def write_result(root: Path, os_name: str, arch: str, attempt: int, value: bytes) -> None:
@@ -40,6 +43,12 @@ def write_result(root: Path, os_name: str, arch: str, attempt: int, value: bytes
 
 
 class Phase5IndexerTest(unittest.TestCase):
+    def test_sbom_workspace_identity_does_not_depend_on_runner_path(self) -> None:
+        first = {"id": "path+file:///Users/runner/work/_temp/build1/source#indexer-standalone@4.4.0-rc.3", "name": "indexer-standalone", "version": "4.4.0-rc.3", "source": None}
+        second = {"id": "path+file:///home/runner/work/_temp/build2/source#indexer-standalone@4.4.0-rc.3", "name": "indexer-standalone", "version": "4.4.0-rc.3", "source": None}
+        self.assertEqual(phase5_indexer_evidence.stable_package_ref(first), phase5_indexer_evidence.stable_package_ref(second))
+        self.assertNotIn("runner", phase5_indexer_evidence.stable_package_ref(first))
+
     def test_committed_component_manifests_validate(self) -> None:
         for path in sorted((ROOT / "catalog/components").glob("indexer-standalone-*.json")):
             result = subprocess.run([sys.executable, "scripts/validate_catalog.py", "component", str(path)], cwd=ROOT, capture_output=True, text=True)
