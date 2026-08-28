@@ -114,15 +114,6 @@ python3 scripts/validate_native.py \
   --forbid-linkage-prefix /nix/store \
   --forbid-linkage-prefix /opt/homebrew \
   --forbid-linkage-prefix /usr/local
-python3 scripts/phase5_indexer_contract.py scan-binary \
-  --binary "$BINARY" --output "$PATH_COUPLING_EVIDENCE" \
-  --forbid-prefix "$HOME" \
-  --forbid-prefix "$RUNNER_TEMP" \
-  --forbid-prefix "$GITHUB_WORKSPACE" \
-  --forbid-prefix "$CARGO_HOME" \
-  --forbid-prefix /home/runner \
-  --forbid-prefix /Users/runner
-
 python3 - "$BINARY" "$PHASE5_OS" "$PHASE5_ARCH" "$PHASE5_RUNNER_LABEL" "$WORK/native-evidence.json" <<'PY'
 import json, os, pathlib, platform, subprocess, sys
 binary, os_name, arch, runner_label, output = sys.argv[1:]
@@ -313,6 +304,14 @@ fi
 
 cp "$BINARY" "$WORK/package/$INNER/$INNER"
 chmod 0755 "$WORK/package/$INNER/$INNER"
+python3 scripts/phase5_indexer_contract.py scan-binary \
+  --binary "$WORK/package/$INNER/$INNER" --output "$PATH_COUPLING_EVIDENCE" \
+  --forbid-prefix "$HOME" \
+  --forbid-prefix "$RUNNER_TEMP" \
+  --forbid-prefix "$GITHUB_WORKSPACE" \
+  --forbid-prefix "$CARGO_HOME" \
+  --forbid-prefix /home/runner \
+  --forbid-prefix /Users/runner
 readonly BIN_SHA="$(python3 - "$WORK/package/$INNER/$INNER" <<'PY'
 import hashlib, pathlib, sys
 print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())
