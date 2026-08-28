@@ -184,7 +184,7 @@ jobs:
           set -e
           test "$missing_status" -ne 0
           test "$missing_status" -ne 124
-          rg -i 'res|chain|spec|No such file' "$work/missing-res.stderr"
+          grep -Eiq 'res|chain|spec|No such file' "$work/missing-res.stderr"
           "$work/run1/tree/$executable_name" --version >"$work/version.txt"
           "$work/run1/tree/$executable_name" --help >"$work/help.txt"
           {
