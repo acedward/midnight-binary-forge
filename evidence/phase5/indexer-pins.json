@@ -1,0 +1,191 @@
+{
+  "schemaVersion": "phase5-indexer-pins-v1",
+  "source": {
+    "repository": "midnightntwrk/midnight-indexer",
+    "tag": "v4.4.0-rc.3",
+    "annotatedTagObject": "f0e8019c0d3c8480f14914bdd721357cfb29c073",
+    "tagSignatureVerifiedByGitHub": true,
+    "tagSignatureVerifiedAt": "2026-08-24T02:54:59Z",
+    "commitSha": "56561b2f5cf5c6839f678257fc69bed1a8b9ba2c",
+    "treeSha": "ebc2936215c8791e8bc9e5590b07991bd01878f2",
+    "sourceArchive": {
+      "url": "https://github.com/midnightntwrk/midnight-indexer/archive/56561b2f5cf5c6839f678257fc69bed1a8b9ba2c.tar.gz",
+      "size": 5897689,
+      "sha256": "c3414dea5f6597ce6fbc327995b72cfd748f8e609e853145913ef9160b83e29e"
+    },
+    "cargoLockSha256": "7c348e5aeae2caec386ca8e0e2ac06cf103d4b6ea8097d9c18eaef89c9ac23d1",
+    "license": {
+      "spdx": "Apache-2.0",
+      "url": "https://raw.githubusercontent.com/midnightntwrk/midnight-indexer/56561b2f5cf5c6839f678257fc69bed1a8b9ba2c/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  },
+  "toolchain": {
+    "rust": "1.95.0",
+    "manifestUrl": "https://static.rust-lang.org/dist/channel-rust-1.95.0.toml",
+    "manifestSha256": "821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9"
+  },
+  "build": {
+    "package": "indexer-standalone",
+    "features": ["standalone"],
+    "locked": true,
+    "profile": "release",
+    "sourceDateEpoch": 1787533457,
+    "embeddedGitSha": "56561b2f",
+    "embeddedBuildDate": "2026-08-24",
+    "targetContracts": {
+      "linux/amd64": {
+        "runner": "ubuntu-24.04",
+        "native": true,
+        "commands": [["cargo", "build", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone"]],
+        "environment": {
+          "CARGO_HOME": "${RUNNER_TEMP}/phase5-cargo-home-${os}-${arch}-build${attempt}",
+          "CARGO_INCREMENTAL": "0",
+          "HOME": "${RUNNER_TEMP}/phase5-exec-home-${os}-${arch}-build${attempt}",
+          "LC_ALL": "C",
+          "MIDNIGHT_INDEXER_BUILD_DATE": "2026-08-24",
+          "MIDNIGHT_INDEXER_GIT_SHA": "56561b2f",
+          "PATH": "${PATH}",
+          "RUSTFLAGS": "--remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols -C link-arg=-Wl,--build-id=sha1",
+          "RUSTUP_TOOLCHAIN": "1.95.0",
+          "SOURCE_DATE_EPOCH": "1787533457",
+          "TMPDIR": "${RUNNER_TEMP}/phase5-exec-tmp-${os}-${arch}-build${attempt}",
+          "TZ": "UTC"
+        },
+        "environmentPolicy": {
+          "schemaVersion": "phase5-indexer-environment-policy-v1",
+          "mode": "closed-allowlist",
+          "ambientPassThrough": [],
+          "rejectExact": ["AR", "CC", "CFLAGS", "CARGO_BUILD_RUSTC", "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_BUILD_TARGET", "CARGO_ENCODED_RUSTFLAGS", "CARGO_TARGET_DIR", "CPP", "CPPFLAGS", "CXX", "CXXFLAGS", "LD", "LDFLAGS", "NM", "RANLIB", "RUSTC", "RUSTC_WORKSPACE_WRAPPER", "RUSTC_WRAPPER", "RUSTDOC", "RUSTDOCFLAGS", "STRIP"],
+          "rejectPrefixes": ["CARGO_PROFILE_", "CARGO_TARGET_"],
+          "clearExact": ["CPATH", "DEVELOPER_DIR", "DYLD_LIBRARY_PATH", "LIBRARY_PATH", "LD_LIBRARY_PATH", "MACOSX_DEPLOYMENT_TARGET", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_PATH", "PKG_CONFIG_SYSROOT_DIR", "SDKROOT", "TEMP", "TMP"],
+          "disposition": "reject listed output overrides; clear listed SDK/linker/search/temp overrides; drop every other ambient name"
+        },
+        "toolIdentityPolicy": {
+          "schemaVersion": "phase5-indexer-tool-identity-policy-v1",
+          "rust": {"version": "1.95.0", "manifestSha256": "821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9"},
+          "nativeTools": ["cc", "ld", "ldd"],
+          "sdk": {"kind": "none"}
+        },
+        "finalProductLinkerFlags": []
+      },
+      "linux/arm64": {
+        "runner": "ubuntu-24.04-arm",
+        "native": true,
+        "commands": [["cargo", "build", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone"]],
+        "environment": {
+          "CARGO_HOME": "${RUNNER_TEMP}/phase5-cargo-home-${os}-${arch}-build${attempt}",
+          "CARGO_INCREMENTAL": "0",
+          "HOME": "${RUNNER_TEMP}/phase5-exec-home-${os}-${arch}-build${attempt}",
+          "LC_ALL": "C",
+          "MIDNIGHT_INDEXER_BUILD_DATE": "2026-08-24",
+          "MIDNIGHT_INDEXER_GIT_SHA": "56561b2f",
+          "PATH": "${PATH}",
+          "RUSTFLAGS": "--remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols -C link-arg=-Wl,--build-id=sha1",
+          "RUSTUP_TOOLCHAIN": "1.95.0",
+          "SOURCE_DATE_EPOCH": "1787533457",
+          "TMPDIR": "${RUNNER_TEMP}/phase5-exec-tmp-${os}-${arch}-build${attempt}",
+          "TZ": "UTC"
+        },
+        "environmentPolicy": {
+          "schemaVersion": "phase5-indexer-environment-policy-v1",
+          "mode": "closed-allowlist",
+          "ambientPassThrough": [],
+          "rejectExact": ["AR", "CC", "CFLAGS", "CARGO_BUILD_RUSTC", "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_BUILD_TARGET", "CARGO_ENCODED_RUSTFLAGS", "CARGO_TARGET_DIR", "CPP", "CPPFLAGS", "CXX", "CXXFLAGS", "LD", "LDFLAGS", "NM", "RANLIB", "RUSTC", "RUSTC_WORKSPACE_WRAPPER", "RUSTC_WRAPPER", "RUSTDOC", "RUSTDOCFLAGS", "STRIP"],
+          "rejectPrefixes": ["CARGO_PROFILE_", "CARGO_TARGET_"],
+          "clearExact": ["CPATH", "DEVELOPER_DIR", "DYLD_LIBRARY_PATH", "LIBRARY_PATH", "LD_LIBRARY_PATH", "MACOSX_DEPLOYMENT_TARGET", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_PATH", "PKG_CONFIG_SYSROOT_DIR", "SDKROOT", "TEMP", "TMP"],
+          "disposition": "reject listed output overrides; clear listed SDK/linker/search/temp overrides; drop every other ambient name"
+        },
+        "toolIdentityPolicy": {
+          "schemaVersion": "phase5-indexer-tool-identity-policy-v1",
+          "rust": {"version": "1.95.0", "manifestSha256": "821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9"},
+          "nativeTools": ["cc", "ld", "ldd"],
+          "sdk": {"kind": "none"}
+        },
+        "finalProductLinkerFlags": []
+      },
+      "macos/amd64": {
+        "runner": "macos-15-intel",
+        "native": true,
+        "commands": [
+          ["cargo", "build", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone"],
+          ["cargo", "rustc", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone", "--", "-C", "link-arg=-Wl,-no_uuid"]
+        ],
+        "environment": {
+          "CARGO_HOME": "${RUNNER_TEMP}/phase5-cargo-home-${os}-${arch}-build${attempt}",
+          "CARGO_INCREMENTAL": "0",
+          "HOME": "${RUNNER_TEMP}/phase5-exec-home-${os}-${arch}-build${attempt}",
+          "LC_ALL": "C",
+          "MIDNIGHT_INDEXER_BUILD_DATE": "2026-08-24",
+          "MIDNIGHT_INDEXER_GIT_SHA": "56561b2f",
+          "PATH": "${PATH}",
+          "RUSTFLAGS": "--remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols",
+          "RUSTUP_TOOLCHAIN": "1.95.0",
+          "SOURCE_DATE_EPOCH": "1787533457",
+          "TMPDIR": "${RUNNER_TEMP}/phase5-exec-tmp-${os}-${arch}-build${attempt}",
+          "TZ": "UTC"
+        },
+        "environmentPolicy": {
+          "schemaVersion": "phase5-indexer-environment-policy-v1",
+          "mode": "closed-allowlist",
+          "ambientPassThrough": [],
+          "rejectExact": ["AR", "CC", "CFLAGS", "CARGO_BUILD_RUSTC", "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_BUILD_TARGET", "CARGO_ENCODED_RUSTFLAGS", "CARGO_TARGET_DIR", "CPP", "CPPFLAGS", "CXX", "CXXFLAGS", "LD", "LDFLAGS", "NM", "RANLIB", "RUSTC", "RUSTC_WORKSPACE_WRAPPER", "RUSTC_WRAPPER", "RUSTDOC", "RUSTDOCFLAGS", "STRIP"],
+          "rejectPrefixes": ["CARGO_PROFILE_", "CARGO_TARGET_"],
+          "clearExact": ["CPATH", "DEVELOPER_DIR", "DYLD_LIBRARY_PATH", "LIBRARY_PATH", "LD_LIBRARY_PATH", "MACOSX_DEPLOYMENT_TARGET", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_PATH", "PKG_CONFIG_SYSROOT_DIR", "SDKROOT", "TEMP", "TMP"],
+          "disposition": "reject listed output overrides; clear listed SDK/linker/search/temp overrides; drop every other ambient name"
+        },
+        "toolIdentityPolicy": {
+          "schemaVersion": "phase5-indexer-tool-identity-policy-v1",
+          "rust": {"version": "1.95.0", "manifestSha256": "821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9"},
+          "nativeTools": ["cc", "clang", "ld"],
+          "sdk": {"kind": "macosx", "selection": "xcrun-default-with-SDKROOT-and-DEVELOPER_DIR-cleared"}
+        },
+        "finalProductLinkerFlags": ["-C", "link-arg=-Wl,-no_uuid"]
+      },
+      "macos/arm64": {
+        "runner": "macos-15",
+        "native": true,
+        "commands": [
+          ["cargo", "build", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone"],
+          ["cargo", "rustc", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone", "--", "-C", "link-arg=-Wl,-no_uuid"]
+        ],
+        "environment": {
+          "CARGO_HOME": "${RUNNER_TEMP}/phase5-cargo-home-${os}-${arch}-build${attempt}",
+          "CARGO_INCREMENTAL": "0",
+          "HOME": "${RUNNER_TEMP}/phase5-exec-home-${os}-${arch}-build${attempt}",
+          "LC_ALL": "C",
+          "MIDNIGHT_INDEXER_BUILD_DATE": "2026-08-24",
+          "MIDNIGHT_INDEXER_GIT_SHA": "56561b2f",
+          "PATH": "${PATH}",
+          "RUSTFLAGS": "--remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols",
+          "RUSTUP_TOOLCHAIN": "1.95.0",
+          "SOURCE_DATE_EPOCH": "1787533457",
+          "TMPDIR": "${RUNNER_TEMP}/phase5-exec-tmp-${os}-${arch}-build${attempt}",
+          "TZ": "UTC"
+        },
+        "environmentPolicy": {
+          "schemaVersion": "phase5-indexer-environment-policy-v1",
+          "mode": "closed-allowlist",
+          "ambientPassThrough": [],
+          "rejectExact": ["AR", "CC", "CFLAGS", "CARGO_BUILD_RUSTC", "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_BUILD_TARGET", "CARGO_ENCODED_RUSTFLAGS", "CARGO_TARGET_DIR", "CPP", "CPPFLAGS", "CXX", "CXXFLAGS", "LD", "LDFLAGS", "NM", "RANLIB", "RUSTC", "RUSTC_WORKSPACE_WRAPPER", "RUSTC_WRAPPER", "RUSTDOC", "RUSTDOCFLAGS", "STRIP"],
+          "rejectPrefixes": ["CARGO_PROFILE_", "CARGO_TARGET_"],
+          "clearExact": ["CPATH", "DEVELOPER_DIR", "DYLD_LIBRARY_PATH", "LIBRARY_PATH", "LD_LIBRARY_PATH", "MACOSX_DEPLOYMENT_TARGET", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_PATH", "PKG_CONFIG_SYSROOT_DIR", "SDKROOT", "TEMP", "TMP"],
+          "disposition": "reject listed output overrides; clear listed SDK/linker/search/temp overrides; drop every other ambient name"
+        },
+        "toolIdentityPolicy": {
+          "schemaVersion": "phase5-indexer-tool-identity-policy-v1",
+          "rust": {"version": "1.95.0", "manifestSha256": "821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9"},
+          "nativeTools": ["cc", "clang", "ld"],
+          "sdk": {"kind": "macosx", "selection": "xcrun-default-with-SDKROOT-and-DEVELOPER_DIR-cleared"}
+        },
+        "finalProductLinkerFlags": ["-C", "link-arg=-Wl,-no_uuid"]
+      }
+    }
+  },
+  "targets": [
+    {"os": "linux", "arch": "amd64", "tier": "required", "runner": "ubuntu-24.04", "native": true},
+    {"os": "linux", "arch": "arm64", "tier": "desired", "runner": "ubuntu-24.04-arm", "native": true},
+    {"os": "macos", "arch": "amd64", "tier": "optional", "runner": "macos-15-intel", "native": true},
+    {"os": "macos", "arch": "arm64", "tier": "required", "runner": "macos-15", "native": true}
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "component-v1",
+  "componentId": "indexer-standalone-macos-arm64-4.4.0-rc.3",
+  "artifactKind": "software",
+  "family": "indexer-standalone",
+  "version": "4.4.0-rc.3",
+  "operation": "build",
+  "source": {
+    "repository": "midnightntwrk/midnight-indexer",
+    "commitSha": "56561b2f5cf5c6839f678257fc69bed1a8b9ba2c",
+    "treeSha": "ebc2936215c8791e8bc9e5590b07991bd01878f2",
+    "tag": "v4.4.0-rc.3",
+    "lockedDependencies": true,
+    "toolchain": "rust-1.95.0-channel-manifest@sha256:821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9",
+    "toolchainDigest": "821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9",
+    "buildFlags": [
+      "runner=macos-15",
+      "native=true",
+      "command[0]=cargo build --locked --release -p indexer-standalone --features standalone",
+      "command[1]=cargo rustc --locked --release -p indexer-standalone --features standalone -- -C link-arg=-Wl,-no_uuid",
+      "env:CARGO_HOME=${RUNNER_TEMP}/phase5-cargo-home-${os}-${arch}-build${attempt}",
+      "env:CARGO_INCREMENTAL=0",
+      "env:HOME=${RUNNER_TEMP}/phase5-exec-home-${os}-${arch}-build${attempt}",
+      "env:LC_ALL=C",
+      "env:MIDNIGHT_INDEXER_BUILD_DATE=2026-08-24",
+      "env:MIDNIGHT_INDEXER_GIT_SHA=56561b2f",
+      "env:PATH=${PATH}",
+      "env:RUSTFLAGS=--remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols",
+      "env:RUSTUP_TOOLCHAIN=1.95.0",
+      "env:SOURCE_DATE_EPOCH=1787533457",
+      "env:TMPDIR=${RUNNER_TEMP}/phase5-exec-tmp-${os}-${arch}-build${attempt}",
+      "env:TZ=UTC",
+      "environmentPolicySha256=76c94a7aa0adc95093d3251274262f77a7ca1a631bda750015fc8c77ec08de39",
+      "toolIdentityPolicySha256=c4716db403298f9b97587c623f498746962c91380357607a3d5f37842bb3f2f9",
+      "finalProductLinkerFlags=[\"-C\",\"link-arg=-Wl,-no_uuid\"]"
+    ]
+  },
+  "destination": {"repository": "effectstream/binaries", "tag": "0.3.120"},
+  "distributionTier": "development-only",
+  "releaseMutability": "mutable-warehouse",
+  "license": {
+    "spdx": "Apache-2.0",
+    "evidence": [{"url": "https://raw.githubusercontent.com/midnightntwrk/midnight-indexer/56561b2f5cf5c6839f678257fc69bed1a8b9ba2c/LICENSE", "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"}],
+    "redistributionStatement": "Apache-2.0 source build from the exact verified upstream tag and commit."
+  },
+  "naming": {
+    "outerTemplate": "indexer-standalone-{os}-{arch}-v{version}.zip",
+    "container": "zip",
+    "appendOnly": true,
+    "members": [{"path": "indexer-standalone-macos-arm64-v4.4.0-rc.3", "type": "file", "mode": "0755"}],
+    "limits": {"maxCompressedBytes": 536870912, "maxExpandedBytes": 1073741824, "maxMembers": 1, "maxExpansionRatio": 20}
+  },
+  "install": {"mode": "0755", "pathTemplate": "bin/indexer-standalone-macos-arm64-v4.4.0-rc.3"},
+  "targets": [{"os": "macos", "arch": "arm64", "tier": "required", "runner": "macos-15", "native": true}],
+  "compatibility": {"kind": "software-runtime", "runtime": "Midnight node 2.0.0-rc.4 / Ledger 9 / GraphQL API v4 / SQLite standalone"},
+  "signing": {"applicability": "macos", "distributionSigningState": "UNSIGNED_DEVELOPMENT_ONLY"},
+  "sbom": {"formats": ["spdx-json", "cyclonedx-json"]},
+  "validation": {"probes": ["sha256", "size", "archive-safety", "member-contract", "native-architecture", "native-linkage", "version", "runtime-smoke"]}
+}
