@@ -152,10 +152,11 @@ jobs:
           python3 scripts/validate_archive.py --archive "$out/payloads/$payload_name" --policy "$work/archive-policy.json" --scratch-parent "$RUNNER_TEMP"
           python3 scripts/validate_native.py --binary "$work/run1/tree/$executable_name" --os linux --arch arm64 --runner-os linux --runner-arch arm64
           port=$(shuf -i 10000-60000 -n 1)
-          pushd "$work/run1/tree" >/dev/null
-          CFG_PRESET=dev "./$executable_name" --tmp --rpc-port "$port" >"$work/node.stdout" 2>"$work/node.stderr" &
+          (
+            cd "$work/run1/tree"
+            exec env CFG_PRESET=dev "./$executable_name" --tmp --rpc-port "$port"
+          ) >"$work/node.stdout" 2>"$work/node.stderr" &
           node_pid=$!
-          popd >/dev/null
           printf '%s\n' "$node_pid" >"$work/node.pid"
           cleanup_node() {
             if [[ -n "${node_pid:-}" ]] && kill -0 "$node_pid" 2>/dev/null; then
