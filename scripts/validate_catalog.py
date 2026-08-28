@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -257,13 +258,29 @@ def load_components(root: Path, build_set: dict[str, Any]) -> dict[str, dict[str
     return components
 
 
+def require_complete_git_history(root: Path) -> None:
+    """Reject ancestry claims unless Git proves this exact checkout is non-shallow."""
+    expect(root.is_dir(), "source-head verification requires a repository directory")
+    git_metadata = root / ".git"
+    expect(git_metadata.exists() and not git_metadata.is_symlink(), "source-head verification requires an exact Git checkout")
+    try:
+        shallow = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--is-shallow-repository"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ForgeError("cannot prove complete Git history") from exc
+    expect(shallow.returncode == 0, "cannot prove complete Git history")
+    expect(shallow.stdout == "false\n" and shallow.stderr == "", "source-head verification requires exact non-shallow Git history")
+
+
 def validate_build_set(build_set: dict[str, Any], root: Path, require_source_head: bool = False) -> dict[str, Any]:
     schema_validate(build_set, "build-set-v1.schema.json")
     if require_source_head:
-        head_file = root / ".git"
-        expect(head_file.exists(), "source-head verification requires a Git checkout")
-        import subprocess
-
+        require_complete_git_history(root)
         result = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=False, capture_output=True, text=True, timeout=10)
         expect(result.returncode == 0 and len(result.stdout.strip()) == 40, "cannot resolve current full source HEAD")
         ancestor = subprocess.run(

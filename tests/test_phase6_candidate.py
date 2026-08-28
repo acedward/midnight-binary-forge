@@ -8,6 +8,7 @@ import io
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import tarfile
@@ -22,10 +23,21 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import phase6_candidate  # noqa: E402
 import github_phase6  # noqa: E402
+import validate_catalog  # noqa: E402
 from forge_io import ForgeError, load_json  # noqa: E402
 
 
 BUILD_SET = ROOT / "catalog/buildsets/initial-warehouse-v1.json"
+
+
+def run_git(repository: Path, *arguments: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(repository), *arguments],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
 
 
 class Phase6BuildSetTest(unittest.TestCase):
@@ -185,6 +197,66 @@ class Phase6BuildSetTest(unittest.TestCase):
             link.symlink_to(inside)
             with self.assertRaisesRegex(ForgeError, "traverses a symlink"):
                 phase6_candidate.repository_file(link, repository)
+
+
+class FullHistoryAncestryTest(unittest.TestCase):
+    def _repository_with_three_commits(self, root: Path) -> tuple[Path, list[str]]:
+        repository = root / "origin"
+        repository.mkdir()
+        run_git(repository, "init", "--initial-branch=main")
+        run_git(repository, "config", "user.email", "phase6-test@example.invalid")
+        run_git(repository, "config", "user.name", "Phase 6 test")
+        commits = []
+        for index in range(3):
+            (repository / "value.txt").write_text(f"{index}\n", encoding="utf-8")
+            run_git(repository, "add", "value.txt")
+            run_git(repository, "commit", "-m", f"fixture {index}")
+            commits.append(run_git(repository, "rev-parse", "HEAD"))
+        return repository, commits
+
+    def test_full_history_positive_and_real_shallow_clone_negative(self) -> None:
+        with tempfile.TemporaryDirectory() as text:
+            root = Path(text)
+            complete, commits = self._repository_with_three_commits(root)
+            buildset = {"sourceFullSha": commits[0], "inputArtifacts": [{"sourceHeadSha": commits[1]}]}
+            validate_catalog.require_complete_git_history(complete)
+            phase6_candidate.git_ancestry(buildset, complete)
+
+            shallow = root / "shallow"
+            subprocess.run(
+                ["git", "clone", "--depth=2", complete.as_uri(), str(shallow)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(run_git(shallow, "rev-parse", "--is-shallow-repository"), "true")
+            self.assertEqual(run_git(shallow, "merge-base", "--is-ancestor", commits[1], commits[2]), "")
+            self.assertTrue((shallow / ".git/shallow").is_file())
+            with self.assertRaisesRegex(ForgeError, "non-shallow"):
+                validate_catalog.require_complete_git_history(shallow)
+            with self.assertRaisesRegex(ForgeError, "non-shallow"):
+                phase6_candidate.git_ancestry(buildset, shallow)
+            with self.assertRaisesRegex(ForgeError, "non-shallow"):
+                validate_catalog.validate_build_set(load_json(BUILD_SET), shallow, require_source_head=True)
+
+    def test_malformed_failed_and_missing_git_context_are_rejected(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, stdout="false\n", stderr="")
+        with mock.patch("validate_catalog.subprocess.run", return_value=completed):
+            validate_catalog.require_complete_git_history(ROOT)
+        for output in ("", "true\n", "false", "false \n", "false\nextra\n"):
+            malformed = subprocess.CompletedProcess([], 0, stdout=output, stderr="")
+            with self.subTest(output=repr(output)), mock.patch("validate_catalog.subprocess.run", return_value=malformed), self.assertRaisesRegex(ForgeError, "non-shallow"):
+                validate_catalog.require_complete_git_history(ROOT)
+        noisy = subprocess.CompletedProcess([], 0, stdout="false\n", stderr="warning\n")
+        with mock.patch("validate_catalog.subprocess.run", return_value=noisy), self.assertRaisesRegex(ForgeError, "non-shallow"):
+            validate_catalog.require_complete_git_history(ROOT)
+        failed = subprocess.CompletedProcess([], 128, stdout="", stderr="fatal\n")
+        with mock.patch("validate_catalog.subprocess.run", return_value=failed), self.assertRaisesRegex(ForgeError, "cannot prove"):
+            validate_catalog.require_complete_git_history(ROOT)
+        with mock.patch("validate_catalog.subprocess.run", side_effect=subprocess.TimeoutExpired(["git"], 10)), self.assertRaisesRegex(ForgeError, "cannot prove"):
+            validate_catalog.require_complete_git_history(ROOT)
+        with tempfile.TemporaryDirectory() as text, self.assertRaisesRegex(ForgeError, "exact Git checkout"):
+            validate_catalog.require_complete_git_history(Path(text))
 
 
 class Phase6StreamingVerifierTest(unittest.TestCase):

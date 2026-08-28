@@ -237,9 +237,12 @@ def verify_live_metadata(buildset: dict[str, Any], metadata: dict[str, Any], req
 
 
 def git_ancestry(buildset: dict[str, Any], root: Path) -> None:
-    head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+    validate_catalog.require_complete_git_history(root)
+    resolved_head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=False, capture_output=True, text=True, timeout=10)
+    expect(resolved_head.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}\n", resolved_head.stdout) is not None and resolved_head.stderr == "", "cannot resolve candidate full source HEAD")
+    head = resolved_head.stdout.rstrip("\n")
     for source in [buildset["sourceFullSha"], *[row["sourceHeadSha"] for row in buildset["inputArtifacts"]]]:
-        result = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", source, head], check=False, capture_output=True)
+        result = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", source, head], check=False, capture_output=True, timeout=10)
         expect(result.returncode == 0, f"reviewed input SHA is not reachable from candidate source HEAD: {source}")
 
 
