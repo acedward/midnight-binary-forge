@@ -33,6 +33,7 @@ jobs:
       - name: Check out exact protected-main source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Validate exact committed build set and source ancestry
         id: validate
