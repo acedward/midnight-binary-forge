@@ -8,6 +8,8 @@
     "repository": "midnightntwrk/midnight-trusted-setup",
     "commitSha": "3ea610263b228af24840f7b00661ee22360db6d8",
     "object": {
+      "id": "sha256:bbe04fe3c70d0c138447cb086b4baddc30cb8bb2a004114bc02e6f739516280e",
+      "name": "bls_midnight_2p1",
       "url": "https://srs.midnight.network/bls_midnight_2p1",
       "size": 772,
       "sha256": "bbe04fe3c70d0c138447cb086b4baddc30cb8bb2a004114bc02e6f739516280e",

@@ -179,6 +179,60 @@
       }
     },
     {
+      "if": { "properties": { "operation": { "const": "build" } }, "required": ["operation"] },
+      "then": {
+        "properties": {
+          "source": {
+            "required": ["lockedDependencies", "toolchain", "toolchainDigest", "buildFlags"],
+            "properties": { "lockedDependencies": { "const": true } },
+            "not": { "anyOf": [{ "required": ["asset"] }, { "required": ["object"] }] }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "enum": ["identity-mirror", "rename-only"] } }, "required": ["operation"] },
+      "then": {
+        "properties": {
+          "source": {
+            "oneOf": [{ "required": ["asset"] }, { "required": ["object"] }],
+            "not": {
+              "anyOf": [
+                { "required": ["lockedDependencies"] },
+                { "required": ["toolchain"] },
+                { "required": ["toolchainDigest"] },
+                { "required": ["buildFlags"] }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "repackage" } }, "required": ["operation"] },
+      "then": {
+        "properties": {
+          "source": {
+            "required": ["lockedDependencies", "toolchain", "toolchainDigest", "buildFlags"],
+            "oneOf": [{ "required": ["asset"] }, { "required": ["object"] }],
+            "properties": { "lockedDependencies": { "const": true } }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "assemble-data" } }, "required": ["operation"] },
+      "then": {
+        "properties": {
+          "source": {
+            "required": ["lockedDependencies", "toolchain", "toolchainDigest", "buildFlags"],
+            "properties": { "lockedDependencies": { "const": true } },
+            "not": { "anyOf": [{ "required": ["asset"] }, { "required": ["object"] }] }
+          }
+        }
+      }
+    },
+    {
       "if": { "properties": { "family": { "const": "compactc" } }, "required": ["family"] },
       "then": false
     },
@@ -232,8 +286,15 @@
         "object": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["url", "size", "sha256"],
+          "required": ["id", "name", "url", "size", "sha256"],
           "properties": {
+            "id": {
+              "oneOf": [
+                { "type": "integer", "minimum": 1 },
+                { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@+-]{2,511}$" }
+              ]
+            },
+            "name": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$", "maxLength": 256 },
             "url": { "type": "string", "pattern": "^https://" },
             "size": { "type": "integer", "minimum": 1 },
             "sha256": { "$ref": "#/$defs/sha256" },
@@ -242,7 +303,7 @@
           }
         },
         "lockedDependencies": { "type": "boolean" },
-        "toolchain": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "toolchain": { "type": "string", "pattern": "^.{1,400}@sha256:[0-9a-f]{64}$", "maxLength": 512 },
         "toolchainDigest": { "$ref": "#/$defs/sha256" },
         "buildFlags": { "type": "array", "items": { "type": "string", "maxLength": 512 } }
       }
@@ -250,7 +311,7 @@
     "nativeTarget": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["os", "arch", "tier", "runner"],
+      "required": ["os", "arch", "tier", "runner", "native"],
       "properties": {
         "os": { "enum": ["linux", "macos"] },
         "arch": { "enum": ["amd64", "arm64"] },

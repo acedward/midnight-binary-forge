@@ -1,18 +1,18 @@
 {
   "schemaVersion": "component-v1",
-  "componentId": "fixture-tool-1.0.0",
+  "componentId": "celestia-appd-existing-coverage-fixture-6.4.10",
   "artifactKind": "software",
-  "family": "fixture-tool",
-  "version": "1.0.0",
+  "family": "celestia-appd",
+  "version": "6.4.10",
   "operation": "build",
   "source": {
-    "repository": "example/fixture-tool",
-    "commitSha": "1111111111111111111111111111111111111111",
-    "tag": "v1.0.0",
+    "repository": "example/celestia-appd-fixture",
+    "commitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "tag": "v6.4.10",
     "lockedDependencies": true,
-    "toolchain": "docker.io/library/python:3.12-bookworm@sha256:7777777777777777777777777777777777777777777777777777777777777777",
-    "toolchainDigest": "7777777777777777777777777777777777777777777777777777777777777777",
-    "buildFlags": []
+    "toolchain": "docker.io/library/golang:1.24-bookworm@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "toolchainDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "buildFlags": ["-trimpath"]
   },
   "destination": {
     "repository": "effectstream/binaries",
@@ -24,32 +24,32 @@
     "spdx": "Apache-2.0",
     "evidence": [
       {
-        "url": "https://example.test/fixture/LICENSE",
-        "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+        "url": "https://example.test/celestia-appd-fixture/LICENSE",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
       }
     ]
   },
   "naming": {
-    "outerTemplate": "fixture-tool-{os}-{arch}-v{version}.zip",
-    "container": "zip",
+    "outerTemplate": "celestia-appd-{os}-{arch}-v{version}.tar.gz",
+    "container": "tar.gz",
     "appendOnly": true,
     "members": [
       {
-        "path": "fixture-tool",
+        "path": "celestia-appd",
         "type": "file",
         "mode": "0755"
       }
     ],
     "limits": {
-      "maxCompressedBytes": 1048576,
-      "maxExpandedBytes": 2097152,
+      "maxCompressedBytes": 1073741824,
+      "maxExpandedBytes": 2147483648,
       "maxMembers": 4,
       "maxExpansionRatio": 10
     }
   },
   "install": {
     "mode": "0755",
-    "pathTemplate": "bin/fixture-tool"
+    "pathTemplate": "bin/celestia-appd"
   },
   "targets": [
     {
@@ -57,13 +57,6 @@
       "arch": "amd64",
       "tier": "required",
       "runner": "ubuntu-24.04",
-      "native": true
-    },
-    {
-      "os": "linux",
-      "arch": "arm64",
-      "tier": "desired",
-      "runner": "ubuntu-24.04-arm",
       "native": true
     },
     {
@@ -76,7 +69,7 @@
   ],
   "compatibility": {
     "kind": "software-runtime",
-    "runtime": "fixture-runtime-1"
+    "runtime": "fixture-only"
   },
   "signing": {
     "applicability": "macos",
@@ -89,22 +82,10 @@
     "strictVerification": false
   },
   "sbom": {
-    "formats": [
-      "spdx-json"
-    ]
+    "formats": ["spdx-json"]
   },
   "validation": {
-    "probes": [
-      "sha256",
-      "archive-safety",
-      "native-architecture",
-      "version"
-    ],
-    "commands": [
-      [
-        "fixture-tool",
-        "--version"
-      ]
-    ]
+    "probes": ["sha256", "archive-safety", "native-architecture", "version"],
+    "commands": [["celestia-appd", "version"]]
   }
 }

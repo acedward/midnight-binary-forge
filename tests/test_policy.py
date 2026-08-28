@@ -49,6 +49,40 @@ def write_json(path: Path, value: dict, canonical: bool = False) -> None:
     path.write_bytes(data)
 
 
+def set_fixture_path(value: dict, path: str, replacement) -> None:
+    parts = path.split("/")
+    cursor = value
+    for part in parts[:-1]:
+        cursor = cursor[int(part)] if isinstance(cursor, list) else cursor[part]
+    if isinstance(cursor, list):
+        cursor[int(parts[-1])] = replacement
+    else:
+        cursor[parts[-1]] = replacement
+
+
+def delete_fixture_path(value: dict, path: str) -> None:
+    parts = path.split("/")
+    cursor = value
+    for part in parts[:-1]:
+        cursor = cursor[int(part)] if isinstance(cursor, list) else cursor[part]
+    if isinstance(cursor, list):
+        del cursor[int(parts[-1])]
+    else:
+        del cursor[parts[-1]]
+
+
+def apply_fixture_case(case: dict) -> dict:
+    value = fixture(case["base"])
+    for path in case.get("delete", []):
+        delete_fixture_path(value, path)
+    for field in case.get("deleteEachTarget", []):
+        for target in value["targets"]:
+            del target[field]
+    for path, replacement in case.get("set", {}).items():
+        set_fixture_path(value, path, replacement)
+    return value
+
+
 @unittest.skipUnless(jsonschema is not None, "CI schema dependencies unavailable")
 class CatalogPolicyTest(unittest.TestCase):
     def test_all_schemas_and_valid_component_fixtures(self) -> None:
@@ -78,6 +112,17 @@ class CatalogPolicyTest(unittest.TestCase):
             timeout=30,
         )
         self.assertEqual(consumer.returncode, 0, consumer.stderr)
+
+    def test_operation_contract_positive_and_adversarial_fixtures(self) -> None:
+        positives = fixture("positive-operation-cases.json")
+        for case in positives["cases"]:
+            with self.subTest(case=case["name"]):
+                validate_catalog.validate_component(apply_fixture_case(case))
+
+        adversarial = fixture("adversarial-component-inputs.json")
+        for case in adversarial["cases"]:
+            with self.subTest(case=case["name"]), self.assertRaises(ForgeError):
+                validate_catalog.validate_component(apply_fixture_case(case))
 
     def test_semantic_policy_negatives(self) -> None:
         software = fixture("valid-software.json")
@@ -180,13 +225,70 @@ class CatalogPolicyTest(unittest.TestCase):
             mac_name = "fixture-tool-macos-arm64-v1.0.0.zip"
             build_set["payloads"] = [row for row in build_set["payloads"] if row["name"] != mac_name]
             build_set["payloadCount"] -= 1
-            build_set["existingCoverage"] = [{
-                "family": "fixture-tool", "version": "1.0.0", "os": "macos", "arch": "arm64", "tier": "required",
-                "source": "warehouse-existing", "name": "fixture-tool-macos-arm64-v1.0.0-existing.zip", "sha256": "b" * 64,
-            }]
-            validate_catalog.validate_build_set(build_set, root)
-            build_set["existingCoverage"] = []
             with self.assertRaisesRegex(ForgeError, "required target coverage missing"):
+                validate_catalog.validate_build_set(build_set, root)
+
+    def test_existing_coverage_is_bound_to_pinned_warehouse_asset(self) -> None:
+        coverage_fixture = fixture("adversarial-existing-coverage.json")
+        with tempfile.TemporaryDirectory() as text:
+            root = Path(text)
+            _, build_set = self._make_build_root(root)
+            component = fixture("valid-existing-coverage-software.json")
+            component_path = root / "catalog/components/valid-existing-coverage-software.json"
+            write_json(component_path, component)
+            build_set["components"].append({
+                "componentId": component["componentId"],
+                "manifestPath": "catalog/components/valid-existing-coverage-software.json",
+                "manifestSha256": sha256(component_path),
+            })
+            payload = {
+                "name": "celestia-appd-linux-amd64-v6.4.10.tar.gz",
+                "role": "payload",
+                "artifactKind": "software",
+                "componentId": component["componentId"],
+                "tier": "required",
+                "os": "linux",
+                "arch": "amd64",
+            }
+            build_set["payloads"].append(payload)
+            build_set["payloads"].sort(key=lambda row: row["name"])
+            build_set["payloadCount"] += 1
+            build_set["existingCoverage"] = [coverage_fixture["positive"]]
+            report = validate_catalog.validate_build_set(build_set, root)
+            celestia = next(row for row in report["families"] if row["family"] == "celestia-appd")
+            self.assertEqual(celestia["required"]["missing"], [])
+
+            fabricated = copy.deepcopy(build_set)
+            fabricated["existingCoverage"] = [coverage_fixture["auditFabricatedRow"]]
+            with self.assertRaises(ForgeError):
+                validate_catalog.validate_build_set(fabricated, root)
+
+            for mutation in coverage_fixture["mutations"]:
+                adversarial = copy.deepcopy(build_set)
+                adversarial["existingCoverage"] = [copy.deepcopy(coverage_fixture["positive"])]
+                adversarial["existingCoverage"][0][mutation["path"]] = mutation["value"]
+                with self.subTest(case=mutation["name"]), self.assertRaises(ForgeError):
+                    validate_catalog.validate_build_set(adversarial, root)
+
+    def test_duplicate_software_semantic_tuple_across_names_and_components(self) -> None:
+        adversarial = fixture("adversarial-duplicate-software-tuple.json")
+        with tempfile.TemporaryDirectory() as text:
+            root = Path(text)
+            _, build_set = self._make_build_root(root)
+            duplicate = fixture(adversarial["base"])
+            duplicate["componentId"] = adversarial["duplicateComponentId"]
+            duplicate["naming"]["outerTemplate"] = adversarial["duplicateOuterTemplate"]
+            path = root / "catalog/components/duplicate-software-semantic-tuple.json"
+            write_json(path, duplicate)
+            build_set["components"].append({
+                "componentId": duplicate["componentId"],
+                "manifestPath": "catalog/components/duplicate-software-semantic-tuple.json",
+                "manifestSha256": sha256(path),
+            })
+            build_set["payloads"].append(adversarial["duplicatePayload"])
+            build_set["payloads"].sort(key=lambda row: row["name"])
+            build_set["payloadCount"] += 1
+            with self.assertRaisesRegex(ForgeError, "duplicate software semantic tuple"):
                 validate_catalog.validate_build_set(build_set, root)
 
 

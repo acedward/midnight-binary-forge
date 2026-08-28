@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "positive-operation-cases-v1",
+  "cases": [
+    {
+      "name": "rename-only-with-exact-object",
+      "base": "valid-srs-k1.json",
+      "set": { "operation": "rename-only" }
+    },
+    {
+      "name": "repackage-with-exact-input-and-toolchain",
+      "base": "valid-software.json",
+      "set": {
+        "operation": "repackage",
+        "source/asset": {
+          "id": 42,
+          "name": "fixture-tool-linux-amd64-v1.0.0.zip",
+          "url": "https://example.test/releases/v1.0.0/fixture-tool-linux-amd64-v1.0.0.zip",
+          "size": 1024,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "targets": [
+          {
+            "os": "linux",
+            "arch": "amd64",
+            "tier": "required",
+            "runner": "ubuntu-24.04",
+            "native": true
+          }
+        ],
+        "signing": {
+          "applicability": "not-applicable",
+          "distributionSigningState": "NOT_APPLICABLE"
+        }
+      }
+    }
+  ]
+}

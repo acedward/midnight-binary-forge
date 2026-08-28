@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "adversarial-existing-coverage-cases-v1",
+  "positive": {
+    "family": "celestia-appd",
+    "version": "6.4.10",
+    "os": "macos",
+    "arch": "arm64",
+    "tier": "required",
+    "source": "warehouse-existing",
+    "repository": "effectstream/binaries",
+    "repositoryId": 1117580582,
+    "repositoryNodeId": "R_kgDOQpztJg",
+    "releaseTag": "0.3.120",
+    "releaseId": 270761136,
+    "releaseNodeId": "RE_kwDOQpztJs4QI3yw",
+    "snapshotPath": "evidence/phase0/warehouse-release-0.3.120.json",
+    "snapshotSha256": "6cb1abbbcf3e693e85b1d6806569caec956d5627b4aeb18ba413b519216124e1",
+    "assetId": 378640593,
+    "assetNodeId": "RA_kwDOQpztJs4WkZjR",
+    "name": "celestia-appd-macos-arm64-v6.4.10.tar.gz",
+    "size": 196072247,
+    "sha256": "832f4b919d79768b960e55f6d778366d9afbb95df6a860e344dffbb92e85b5be"
+  },
+  "auditFabricatedRow": {
+    "family": "fixture-tool",
+    "version": "1.0.0",
+    "os": "macos",
+    "arch": "arm64",
+    "tier": "required",
+    "source": "warehouse-existing",
+    "name": "definitely-does-not-exist-macos-arm64.zip",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "mutations": [
+    { "name": "wrong-repository", "path": "repository", "value": "attacker/binaries" },
+    { "name": "wrong-repository-id", "path": "repositoryId", "value": 1 },
+    { "name": "wrong-repository-node-id", "path": "repositoryNodeId", "value": "R_attacker" },
+    { "name": "wrong-release-tag", "path": "releaseTag", "value": "0.3.121" },
+    { "name": "wrong-release-id", "path": "releaseId", "value": 1 },
+    { "name": "wrong-release-node-id", "path": "releaseNodeId", "value": "RE_attacker" },
+    { "name": "wrong-snapshot-path", "path": "snapshotPath", "value": "evidence/attacker.json" },
+    { "name": "wrong-snapshot-digest", "path": "snapshotSha256", "value": "0000000000000000000000000000000000000000000000000000000000000000" },
+    { "name": "unknown-asset-id", "path": "assetId", "value": 1 },
+    { "name": "wrong-asset-node-id", "path": "assetNodeId", "value": "RA_attacker" },
+    { "name": "fabricated-name", "path": "name", "value": "definitely-does-not-exist-macos-arm64.zip" },
+    { "name": "wrong-size", "path": "size", "value": 196072248 },
+    { "name": "fabricated-digest", "path": "sha256", "value": "0000000000000000000000000000000000000000000000000000000000000000" },
+    { "name": "wrong-semantic-family", "path": "family", "value": "fixture-tool" },
+    { "name": "wrong-semantic-version", "path": "version", "value": "6.4.11" }
+  ]
+}
