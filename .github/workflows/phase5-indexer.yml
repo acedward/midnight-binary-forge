@@ -8,8 +8,11 @@ on:
       - catalog/components/indexer-standalone-*.json
       - evidence/phase5/**
       - scripts/build_phase5_indexer.sh
+      - scripts/check_phase5_runtime_logs.py
       - scripts/compare_phase5_indexer_builds.py
+      - scripts/phase5_indexer_contract.py
       - scripts/phase5_indexer_evidence.py
+      - tests/test_phase5_indexer.py
   push:
     branches: [main]
     paths:
@@ -17,8 +20,11 @@ on:
       - catalog/components/indexer-standalone-*.json
       - evidence/phase5/**
       - scripts/build_phase5_indexer.sh
+      - scripts/check_phase5_runtime_logs.py
       - scripts/compare_phase5_indexer_builds.py
+      - scripts/phase5_indexer_contract.py
       - scripts/phase5_indexer_evidence.py
+      - tests/test_phase5_indexer.py
 
 permissions:
   contents: read

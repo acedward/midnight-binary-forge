@@ -50,7 +50,7 @@ def main() -> int:
     for os_name, arch in TARGETS:
         first_root, first = load_result(args.input, os_name, arch, 1)
         second_root, second = load_result(args.input, os_name, arch, 2)
-        for key in ("sourceCommit", "version", "binary", "archive"):
+        for key in ("sourceCommit", "version", "binary", "archive", "buildContract"):
             if first[key] != second[key]:
                 raise SystemExit(f"unexplained {key} nondeterminism for {os_name}/{arch}")
         archive_name = first["archive"]["name"]
@@ -72,6 +72,7 @@ def main() -> int:
             "independentJobs": 2,
             "binary": first["binary"],
             "archive": first["archive"],
+            "buildContract": first["buildContract"],
             "disposition": "byte-identical",
         }
         (target_evidence / "reproducibility.json").write_text(json.dumps(reproducibility, sort_keys=True, indent=2) + "\n", encoding="utf-8")

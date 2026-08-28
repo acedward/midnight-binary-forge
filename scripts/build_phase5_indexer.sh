@@ -6,6 +6,8 @@ set -euo pipefail
 : "${PHASE5_ATTEMPT:?PHASE5_ATTEMPT is required}"
 : "${PHASE5_RUNNER_LABEL:?PHASE5_RUNNER_LABEL is required}"
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
+: "${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}"
+: "${HOME:?HOME is required}"
 
 case "${PHASE5_OS}/${PHASE5_ARCH}/${PHASE5_ATTEMPT}/${PHASE5_RUNNER_LABEL}" in
   linux/amd64/1/ubuntu-24.04|linux/amd64/2/ubuntu-24.04|\
@@ -30,9 +32,15 @@ readonly WORK="${RUNNER_TEMP}/phase5-indexer-${TARGET_ID}-build${PHASE5_ATTEMPT}
 readonly SOURCE="${WORK}/source"
 readonly STAGE="${GITHUB_WORKSPACE}/stage/${TARGET_ID}-build${PHASE5_ATTEMPT}"
 readonly LOG="${WORK}/build.log"
+readonly CARGO_HOME_PATH="${RUNNER_TEMP}/phase5-cargo-home-${TARGET_ID}-build${PHASE5_ATTEMPT}"
+readonly PINS="${GITHUB_WORKSPACE}/evidence/phase5/indexer-pins.json"
+readonly COMPONENT="${GITHUB_WORKSPACE}/catalog/components/indexer-standalone-${TARGET_ID}-${VERSION}.json"
+readonly BUILD_CONTRACT="${WORK}/actual-build-contract.json"
+readonly PATH_COUPLING_EVIDENCE="${WORK}/path-coupling-evidence.json"
 
-rm -rf "$WORK"
-mkdir -p "$WORK" "$STAGE/payload" "$STAGE/evidence-input" "$WORK/package/$INNER"
+rm -rf "$WORK" "$CARGO_HOME_PATH"
+mkdir -p "$WORK" "$CARGO_HOME_PATH" "$STAGE/payload" "$STAGE/evidence-input" "$WORK/package/$INNER"
+export CARGO_HOME="$CARGO_HOME_PATH"
 
 python3 scripts/check_runner_capability.py \
   --runner-label "$PHASE5_RUNNER_LABEL" \
@@ -72,35 +80,29 @@ print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())
 PY
 )" = "$LICENSE_SHA256"
 
-export SOURCE_DATE_EPOCH=1787533457
-export MIDNIGHT_INDEXER_GIT_SHA=56561b2f
-export MIDNIGHT_INDEXER_BUILD_DATE=2026-08-24
-export CARGO_INCREMENTAL=0
-export LC_ALL=C
-export TZ=UTC
-if [[ "$PHASE5_OS" == linux ]]; then
-  export RUSTFLAGS="--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols -C link-arg=-Wl,--build-id=sha1"
-else
-  # Apply path/strip policy to dependencies, including proc-macro dylibs. The
-  # final-only no_uuid flag is added below: applying it to proc macros makes
-  # Apple-Silicon dyld reject them before the product can be linked.
-  export RUSTFLAGS="--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer -C strip=symbols"
-fi
+python3 scripts/phase5_indexer_contract.py materialize \
+  --pins "$PINS" --component "$COMPONENT" \
+  --os "$PHASE5_OS" --arch "$PHASE5_ARCH" --attempt "$PHASE5_ATTEMPT" \
+  --runner-temp "$RUNNER_TEMP" --runner-home "$HOME" \
+  --source "$SOURCE" --output "$BUILD_CONTRACT"
+contract_env() {
+  python3 - "$BUILD_CONTRACT" "$1" <<'PY'
+import json, pathlib, sys
+print(json.loads(pathlib.Path(sys.argv[1]).read_text())["environment"][sys.argv[2]])
+PY
+}
+export SOURCE_DATE_EPOCH="$(contract_env SOURCE_DATE_EPOCH)"
+export MIDNIGHT_INDEXER_GIT_SHA="$(contract_env MIDNIGHT_INDEXER_GIT_SHA)"
+export MIDNIGHT_INDEXER_BUILD_DATE="$(contract_env MIDNIGHT_INDEXER_BUILD_DATE)"
+export CARGO_INCREMENTAL="$(contract_env CARGO_INCREMENTAL)"
+export LC_ALL="$(contract_env LC_ALL)"
+export TZ="$(contract_env TZ)"
+export RUSTFLAGS="$(contract_env RUSTFLAGS)"
+test "$(contract_env CARGO_HOME)" = "$CARGO_HOME"
 
-(
-  cd "$SOURCE"
-  cargo build --locked --release -p indexer-standalone --features standalone
-) 2>&1 | tee "$LOG"
-
-if [[ "$PHASE5_OS" == macos ]]; then
-  # Apple's linker otherwise creates a random LC_UUID. cargo rustc's trailing
-  # arguments affect the selected product target only, leaving host proc-macro
-  # dylibs valid. Suppressing this optional load command is not a signing step.
-  (
-    cd "$SOURCE"
-    cargo rustc --locked --release -p indexer-standalone --features standalone -- -C link-arg=-Wl,-no_uuid
-  ) 2>&1 | tee -a "$LOG"
-fi
+python3 scripts/phase5_indexer_contract.py run \
+  --pins "$PINS" --component "$COMPONENT" --actual "$BUILD_CONTRACT" \
+  2>&1 | tee "$LOG"
 
 readonly BINARY="${SOURCE}/target/release/indexer-standalone"
 test -f "$BINARY"
@@ -112,6 +114,14 @@ python3 scripts/validate_native.py \
   --forbid-linkage-prefix /nix/store \
   --forbid-linkage-prefix /opt/homebrew \
   --forbid-linkage-prefix /usr/local
+python3 scripts/phase5_indexer_contract.py scan-binary \
+  --binary "$BINARY" --output "$PATH_COUPLING_EVIDENCE" \
+  --forbid-prefix "$HOME" \
+  --forbid-prefix "$RUNNER_TEMP" \
+  --forbid-prefix "$GITHUB_WORKSPACE" \
+  --forbid-prefix "$CARGO_HOME" \
+  --forbid-prefix /home/runner \
+  --forbid-prefix /Users/runner
 
 python3 - "$BINARY" "$PHASE5_OS" "$PHASE5_ARCH" "$PHASE5_RUNNER_LABEL" "$WORK/native-evidence.json" <<'PY'
 import json, os, pathlib, platform, subprocess, sys
@@ -142,9 +152,9 @@ else:
 pathlib.Path(output).write_text(json.dumps(value, sort_keys=True, indent=2) + "\n")
 PY
 
-python3 - "$BINARY" "$PHASE5_OS" "$WORK/signing-evidence.json" <<'PY'
+python3 - "$BINARY" "$PHASE5_OS" "$PHASE5_ARCH" "$WORK/signing-evidence.json" <<'PY'
 import json, pathlib, re, subprocess, sys
-binary, os_name, output = sys.argv[1:]
+binary, os_name, arch, output = sys.argv[1:]
 value = {"schemaVersion": "phase5-indexer-signing-evidence-v1", "distributionSigningState": "NOT_APPLICABLE" if os_name == "linux" else "UNSIGNED_DEVELOPMENT_ONLY"}
 if os_name == "linux":
     value.update({"applicability": "not-applicable", "codeSignatureKind": None})
@@ -173,6 +183,9 @@ else:
         "ciSigningAction": "inspection-only; no ad-hoc or Developer ID signing command was invoked",
         "warning": "DEVELOPMENT ONLY — NOT FOR PRODUCTION USE. No Developer ID; Gatekeeper may require explicit override."
     })
+    expected = {"amd64": ("none", False), "arm64": ("linker-adhoc", True)}[arch]
+    if (kind, strict.returncode == 0) != expected:
+        raise SystemExit(f"unexpected native macOS signature state for {arch}: {(kind, strict.returncode == 0)} != {expected}")
 pathlib.Path(output).write_text(json.dumps(value, sort_keys=True, indent=2) + "\n")
 PY
 
@@ -183,6 +196,9 @@ if [[ "$PHASE5_ATTEMPT" == 1 ]]; then
   ) 2>&1 | tee "$WORK/concurrent-wallet-regression.log"
 
   readonly RUNTIME="$WORK/runtime"
+  readonly FIRST_RUNTIME_LOG="$RUNTIME/runtime-first-concurrency.log"
+  readonly RESTART_RUNTIME_LOG="$RUNTIME/runtime-restart.log"
+  readonly RUNTIME_LOG_EVIDENCE="$WORK/runtime-log-evidence.json"
   mkdir -p "$RUNTIME"
   cp "$SOURCE/indexer-standalone/config.yaml" "$RUNTIME/config.yaml"
   python3 - "$RUNTIME/indexer-secret" "$RUNTIME/blockfrost-id" <<'PY'
@@ -229,11 +245,12 @@ PY
   export APP__INFRA__SPO_NODE__RECONNECT_MAX_ATTEMPTS=600
 
   start_indexer() {
-    "$BINARY" >"$RUNTIME/indexer.log" 2>&1 &
+    local runtime_log="$1"
+    "$BINARY" >"$runtime_log" 2>&1 &
     INDEXER_PID=$!
     for _ in $(seq 1 120); do
       if ! kill -0 "$INDEXER_PID" 2>/dev/null; then
-        cat "$RUNTIME/indexer.log" >&2
+        cat "$runtime_log" >&2
         return 1
       fi
       if curl -fsS -H 'content-type: application/json' --data '{"query":"{ __typename }"}' "http://127.0.0.1:${PORT}/api/v4/graphql" | grep -F '"data"' >/dev/null; then
@@ -251,7 +268,7 @@ PY
     set -e
     case "$INDEXER_EXIT" in 0|1|143) ;; *) echo "unexpected shutdown status $INDEXER_EXIT" >&2; return 1 ;; esac
   }
-  start_indexer
+  start_indexer "$FIRST_RUNTIME_LOG"
   python3 - "$PORT" <<'PY'
 import concurrent.futures, json, sys, urllib.request
 port = int(sys.argv[1])
@@ -268,22 +285,23 @@ PY
   kill -0 "$INDEXER_PID"
   stop_indexer
   readonly FIRST_EXIT="$INDEXER_EXIT"
-  start_indexer
+  start_indexer "$RESTART_RUNTIME_LOG"
   kill -0 "$INDEXER_PID"
   stop_indexer
   readonly SECOND_EXIT="$INDEXER_EXIT"
-  if grep -Ei 'pool timed out while waiting|database is locked|SQLITE_BUSY' "$RUNTIME/indexer.log" >/dev/null; then
-    echo "fatal SQLite/pool regression found" >&2
-    exit 2
-  fi
-  python3 - "$WORK/runtime-evidence.json" "$PORT" "$FIRST_EXIT" "$SECOND_EXIT" <<'PY'
+  python3 scripts/check_phase5_runtime_logs.py \
+    --first "$FIRST_RUNTIME_LOG" --restart "$RESTART_RUNTIME_LOG" \
+    --output "$RUNTIME_LOG_EVIDENCE"
+  python3 - "$WORK/runtime-evidence.json" "$RUNTIME_LOG_EVIDENCE" "$PORT" "$FIRST_EXIT" "$SECOND_EXIT" <<'PY'
 import json, pathlib, sys
+log_evidence = json.loads(pathlib.Path(sys.argv[2]).read_text())
 pathlib.Path(sys.argv[1]).write_text(json.dumps({
   "schemaVersion": "phase5-indexer-runtime-evidence-v1",
   "graphql": {"path": "/api/v4/graphql", "portPolicy": "random-free-above-10000", "concurrentRequests": 64, "maxWorkers": 8},
-  "sqlite": {"journalMode": "wal", "maxConnections": 8, "fatalBusyOrPoolErrors": 0},
+  "sqlite": {"journalMode": "wal", "maxConnections": 8, "fatalBusyOrPoolErrors": log_evidence["fatalBusyOrPoolErrors"]},
+  "logs": log_evidence["logs"],
   "regression": "indexer_common::infra::pool::sqlite::tests::concurrent_write_transactions_never_hit_busy_errors passed",
-  "process": {"aliveAfterConcurrency": True, "firstShutdownExit": int(sys.argv[3]), "restartReady": True, "secondShutdownExit": int(sys.argv[4])}
+  "process": {"aliveAfterConcurrency": True, "firstShutdownExit": int(sys.argv[4]), "restartReady": True, "secondShutdownExit": int(sys.argv[5])}
 }, sort_keys=True, indent=2) + "\n")
 PY
 else
@@ -326,7 +344,7 @@ python3 scripts/validate_archive.py \
   cargo metadata --locked --format-version 1 > "$WORK/cargo-metadata.json"
 )
 cp "$SOURCE/Cargo.lock" "$WORK/Cargo.lock"
-python3 scripts/phase5_indexer_evidence.py \
+evidence_args=(
   --metadata "$WORK/cargo-metadata.json" \
   --binary "$WORK/package/$INNER/$INNER" \
   --archive "$STAGE/payload/$ARCHIVE" \
@@ -334,9 +352,22 @@ python3 scripts/phase5_indexer_evidence.py \
   --native-evidence "$WORK/native-evidence.json" \
   --runtime-evidence "$WORK/runtime-evidence.json" \
   --signing-evidence "$WORK/signing-evidence.json" \
+  --pins "$PINS" \
+  --component "$COMPONENT" \
+  --actual-build-contract "$BUILD_CONTRACT" \
+  --path-coupling-evidence "$PATH_COUPLING_EVIDENCE" \
   --license "$SOURCE/LICENSE" \
   --output "$STAGE/evidence" \
   --os "$PHASE5_OS" --arch "$PHASE5_ARCH" --attempt "$PHASE5_ATTEMPT"
+)
+if [[ "$PHASE5_ATTEMPT" == 1 ]]; then
+  evidence_args+=(
+    --runtime-log-evidence "$RUNTIME_LOG_EVIDENCE"
+    --runtime-first-log "$FIRST_RUNTIME_LOG"
+    --runtime-restart-log "$RESTART_RUNTIME_LOG"
+  )
+fi
+python3 scripts/phase5_indexer_evidence.py "${evidence_args[@]}"
 
 python3 - "$STAGE" <<'PY'
 import pathlib, sys

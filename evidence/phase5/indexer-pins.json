@@ -32,7 +32,79 @@
     "profile": "release",
     "sourceDateEpoch": 1787533457,
     "embeddedGitSha": "56561b2f",
-    "embeddedBuildDate": "2026-08-24"
+    "embeddedBuildDate": "2026-08-24",
+    "targetContracts": {
+      "linux/amd64": {
+        "runner": "ubuntu-24.04",
+        "native": true,
+        "commands": [["cargo", "build", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone"]],
+        "environment": {
+          "CARGO_HOME": "${RUNNER_TEMP}/phase5-cargo-home-${os}-${arch}-build${attempt}",
+          "CARGO_INCREMENTAL": "0",
+          "LC_ALL": "C",
+          "MIDNIGHT_INDEXER_BUILD_DATE": "2026-08-24",
+          "MIDNIGHT_INDEXER_GIT_SHA": "56561b2f",
+          "RUSTFLAGS": "--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home -C strip=symbols -C link-arg=-Wl,--build-id=sha1",
+          "SOURCE_DATE_EPOCH": "1787533457",
+          "TZ": "UTC"
+        },
+        "finalProductLinkerFlags": []
+      },
+      "linux/arm64": {
+        "runner": "ubuntu-24.04-arm",
+        "native": true,
+        "commands": [["cargo", "build", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone"]],
+        "environment": {
+          "CARGO_HOME": "${RUNNER_TEMP}/phase5-cargo-home-${os}-${arch}-build${attempt}",
+          "CARGO_INCREMENTAL": "0",
+          "LC_ALL": "C",
+          "MIDNIGHT_INDEXER_BUILD_DATE": "2026-08-24",
+          "MIDNIGHT_INDEXER_GIT_SHA": "56561b2f",
+          "RUSTFLAGS": "--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home -C strip=symbols -C link-arg=-Wl,--build-id=sha1",
+          "SOURCE_DATE_EPOCH": "1787533457",
+          "TZ": "UTC"
+        },
+        "finalProductLinkerFlags": []
+      },
+      "macos/amd64": {
+        "runner": "macos-15-intel",
+        "native": true,
+        "commands": [
+          ["cargo", "build", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone"],
+          ["cargo", "rustc", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone", "--", "-C", "link-arg=-Wl,-no_uuid"]
+        ],
+        "environment": {
+          "CARGO_HOME": "${RUNNER_TEMP}/phase5-cargo-home-${os}-${arch}-build${attempt}",
+          "CARGO_INCREMENTAL": "0",
+          "LC_ALL": "C",
+          "MIDNIGHT_INDEXER_BUILD_DATE": "2026-08-24",
+          "MIDNIGHT_INDEXER_GIT_SHA": "56561b2f",
+          "RUSTFLAGS": "--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home -C strip=symbols",
+          "SOURCE_DATE_EPOCH": "1787533457",
+          "TZ": "UTC"
+        },
+        "finalProductLinkerFlags": ["-C", "link-arg=-Wl,-no_uuid"]
+      },
+      "macos/arm64": {
+        "runner": "macos-15",
+        "native": true,
+        "commands": [
+          ["cargo", "build", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone"],
+          ["cargo", "rustc", "--locked", "--release", "-p", "indexer-standalone", "--features", "standalone", "--", "-C", "link-arg=-Wl,-no_uuid"]
+        ],
+        "environment": {
+          "CARGO_HOME": "${RUNNER_TEMP}/phase5-cargo-home-${os}-${arch}-build${attempt}",
+          "CARGO_INCREMENTAL": "0",
+          "LC_ALL": "C",
+          "MIDNIGHT_INDEXER_BUILD_DATE": "2026-08-24",
+          "MIDNIGHT_INDEXER_GIT_SHA": "56561b2f",
+          "RUSTFLAGS": "--remap-path-prefix=${SOURCE}=/usr/src/midnight-indexer --remap-path-prefix=${CARGO_HOME}=/usr/src/cargo-home --remap-path-prefix=${RUNNER_TEMP}=/usr/src/runner-temp --remap-path-prefix=${RUNNER_HOME}=/usr/src/runner-home -C strip=symbols",
+          "SOURCE_DATE_EPOCH": "1787533457",
+          "TZ": "UTC"
+        },
+        "finalProductLinkerFlags": ["-C", "link-arg=-Wl,-no_uuid"]
+      }
+    }
   },
   "targets": [
     {"os": "linux", "arch": "amd64", "tier": "required", "runner": "ubuntu-24.04", "native": true},

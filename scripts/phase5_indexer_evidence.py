@@ -10,6 +10,8 @@ import os
 import uuid
 from pathlib import Path
 
+import phase5_indexer_contract
+
 
 SOURCE_COMMIT = "56561b2f5cf5c6839f678257fc69bed1a8b9ba2c"
 SOURCE_TREE = "ebc2936215c8791e8bc9e5590b07991bd01878f2"
@@ -32,6 +34,11 @@ def digest(path: Path) -> tuple[str, int]:
 
 def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, sort_keys=True, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def canonical_json_sha256(value: object) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def spdx_id(package_id: str) -> str:
@@ -146,6 +153,13 @@ def main() -> int:
     parser.add_argument("--native-evidence", required=True, type=Path)
     parser.add_argument("--runtime-evidence", required=True, type=Path)
     parser.add_argument("--signing-evidence", required=True, type=Path)
+    parser.add_argument("--pins", required=True, type=Path)
+    parser.add_argument("--component", required=True, type=Path)
+    parser.add_argument("--actual-build-contract", required=True, type=Path)
+    parser.add_argument("--path-coupling-evidence", required=True, type=Path)
+    parser.add_argument("--runtime-log-evidence", type=Path)
+    parser.add_argument("--runtime-first-log", type=Path)
+    parser.add_argument("--runtime-restart-log", type=Path)
     parser.add_argument("--license", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--os", required=True, choices=("linux", "macos"))
@@ -154,6 +168,17 @@ def main() -> int:
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
     metadata = json.loads(args.metadata.read_text(encoding="utf-8"))
+    pins = phase5_indexer_contract.load_json(args.pins)
+    component = phase5_indexer_contract.load_json(args.component)
+    actual_contract = phase5_indexer_contract.load_json(args.actual_build_contract)
+    phase5_indexer_contract.validate_actual_contract(actual_contract, pins, component)
+    if actual_contract["target"]["os"] != args.os or actual_contract["target"]["arch"] != args.arch or actual_contract["attempt"] != args.attempt:
+        raise SystemExit("actual build contract target/attempt differs from evidence invocation")
+    target_contract = phase5_indexer_contract.contract_for_target(pins, args.os, args.arch)
+    pins_sha, pins_size = digest(args.pins)
+    component_sha, component_size = digest(args.component)
+    actual_contract_sha, actual_contract_size = digest(args.actual_build_contract)
+    target_contract_sha = canonical_json_sha256(target_contract)
     spdx_path, cdx_path = generate_sboms(metadata, args.os, args.arch, args.output)
 
     binary_sha, binary_size = digest(args.binary)
@@ -165,6 +190,11 @@ def main() -> int:
     license_sha, license_size = digest(args.license)
     if license_sha != "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4":
         raise SystemExit("upstream license digest mismatch")
+    path_coupling = phase5_indexer_contract.load_json(args.path_coupling_evidence)
+    if path_coupling.get("binary") != {"name": args.binary.name, "size": binary_size, "sha256": binary_sha}:
+        raise SystemExit("path-coupling scan is not bound to the emitted binary")
+    if path_coupling.get("scan", {}).get("allOccurrences") != 0 or any(row.get("occurrences") != 0 for row in path_coupling.get("scan", {}).get("prefixes", [])):
+        raise SystemExit("path-coupling scan contains a forbidden runner prefix")
 
     source_manifest = {
         "schemaVersion": "phase5-indexer-source-manifest-v1",
@@ -180,6 +210,10 @@ def main() -> int:
             "cargoLockSha256": CARGO_LOCK_SHA256,
         },
         "toolchain": {"rust": "1.95.0", "manifestSha256": TOOLCHAIN_SHA256},
+        "inputManifests": {
+            "pins": {"name": args.pins.name, "size": pins_size, "sha256": pins_sha},
+            "component": {"name": args.component.name, "size": component_size, "sha256": component_sha},
+        },
         "build": {
             "locked": True,
             "package": "indexer-standalone",
@@ -188,8 +222,12 @@ def main() -> int:
             "sourceDateEpoch": 1787533457,
             "embeddedGitSha": "56561b2f",
             "embeddedBuildDate": "2026-08-24",
+            "targetContract": target_contract,
+            "targetContractSha256": target_contract_sha,
+            "resolvedContract": actual_contract,
+            "resolvedContractManifest": {"name": args.actual_build_contract.name, "size": actual_contract_size, "sha256": actual_contract_sha},
         },
-        "target": {"os": args.os, "arch": args.arch, "native": True},
+        "target": actual_contract["target"],
         "payload": {"binary": {"name": args.binary.name, "size": binary_size, "sha256": binary_sha}, "archive": {"name": args.archive.name, "size": archive_size, "sha256": archive_sha}},
     }
     source_manifest_path = args.output / "source-manifest-indexer-standalone.json"
@@ -202,12 +240,28 @@ def main() -> int:
         "predicate": {
             "buildDefinition": {
                 "buildType": "https://github.com/acedward/midnight-binary-forge/build-types/phase5-indexer-v1",
-                "externalParameters": {"source": f"https://github.com/midnightntwrk/midnight-indexer@{SOURCE_COMMIT}", "target": f"{args.os}/{args.arch}", "attempt": args.attempt},
-                "internalParameters": {"runnerName": os.environ.get("RUNNER_NAME", "unknown"), "runnerImage": os.environ.get("ImageOS", "unknown"), "runnerImageVersion": os.environ.get("ImageVersion", "unknown")},
+                "externalParameters": {
+                    "source": f"https://github.com/midnightntwrk/midnight-indexer@{SOURCE_COMMIT}",
+                    "target": f"{args.os}/{args.arch}",
+                    "attempt": args.attempt,
+                    "pinsManifest": {"name": args.pins.name, "sha256": pins_sha},
+                    "componentManifest": {"name": args.component.name, "sha256": component_sha},
+                    "targetBuildContract": target_contract,
+                    "targetBuildContractSha256": target_contract_sha,
+                },
+                "internalParameters": {
+                    "runnerName": os.environ.get("RUNNER_NAME", "unknown"),
+                    "runnerImage": os.environ.get("ImageOS", "unknown"),
+                    "runnerImageVersion": os.environ.get("ImageVersion", "unknown"),
+                    "resolvedBuildContract": actual_contract,
+                    "resolvedBuildContractManifest": {"name": args.actual_build_contract.name, "sha256": actual_contract_sha},
+                },
                 "resolvedDependencies": [
                     {"uri": "git+https://github.com/midnightntwrk/midnight-indexer", "digest": {"gitCommit": SOURCE_COMMIT, "gitTree": SOURCE_TREE}},
                     {"uri": "https://static.rust-lang.org/dist/channel-rust-1.95.0.toml", "digest": {"sha256": TOOLCHAIN_SHA256}},
                     {"uri": "git+https://github.com/midnightntwrk/midnight-indexer?path=Cargo.lock", "digest": {"sha256": CARGO_LOCK_SHA256}},
+                    {"uri": "git+https://github.com/acedward/midnight-binary-forge?path=evidence/phase5/indexer-pins.json", "digest": {"sha256": pins_sha}},
+                    {"uri": f"git+https://github.com/acedward/midnight-binary-forge?path=catalog/components/{args.component.name}", "digest": {"sha256": component_sha}},
                 ],
             },
             "runDetails": {
@@ -231,7 +285,32 @@ def main() -> int:
         "DEVELOPMENT ONLY — NOT FOR PRODUCTION USE.\n",
         encoding="utf-8",
     )
-    for path in (args.native_evidence, args.runtime_evidence, args.signing_evidence):
+    runtime_value = phase5_indexer_contract.load_json(args.runtime_evidence)
+    runtime_log_args = (args.runtime_log_evidence, args.runtime_first_log, args.runtime_restart_log)
+    if args.attempt == 1:
+        if any(path is None for path in runtime_log_args):
+            raise SystemExit("attempt 1 requires both retained runtime logs and their evidence")
+        runtime_log_value = phase5_indexer_contract.load_json(args.runtime_log_evidence)
+        if runtime_log_value.get("schemaVersion") != "phase5-indexer-runtime-log-evidence-v1" or runtime_log_value.get("fatalBusyOrPoolErrors") != 0:
+            raise SystemExit("runtime log scan did not pass")
+        if runtime_value.get("logs") != runtime_log_value.get("logs") or runtime_value.get("sqlite", {}).get("fatalBusyOrPoolErrors") != 0:
+            raise SystemExit("runtime evidence is not bound to both retained logs")
+        for key, path in (("firstConcurrency", args.runtime_first_log), ("restart", args.runtime_restart_log)):
+            value, size = digest(path)
+            expected = {"name": path.name, "size": size, "sha256": value, "fatalMatches": []}
+            if runtime_log_value["logs"].get(key) != expected:
+                raise SystemExit(f"retained runtime log does not match evidence: {key}")
+            (args.output / path.name).write_bytes(path.read_bytes())
+        (args.output / args.runtime_log_evidence.name).write_bytes(args.runtime_log_evidence.read_bytes())
+    elif any(path is not None for path in runtime_log_args):
+        raise SystemExit("attempt 2 must not claim runtime-log evidence from another build")
+    for path in (
+        args.native_evidence,
+        args.runtime_evidence,
+        args.signing_evidence,
+        args.path_coupling_evidence,
+        args.actual_build_contract,
+    ):
         (args.output / path.name).write_bytes(path.read_bytes())
 
     evidence = []
@@ -246,6 +325,11 @@ def main() -> int:
         "version": VERSION,
         "binary": {"name": args.binary.name, "size": binary_size, "sha256": binary_sha},
         "archive": {"name": args.archive.name, "size": archive_size, "sha256": archive_sha},
+        "buildContract": {
+            "pinsManifestSha256": pins_sha,
+            "componentManifestSha256": component_sha,
+            "targetContractSha256": target_contract_sha,
+        },
         "evidence": evidence,
     }
     write_json(args.output.parent / "result.json", result)
