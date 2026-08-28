@@ -226,13 +226,37 @@ def checksum_manifest(root: Path) -> None:
     compare_phase5_indexer_builds.validate_checksum_manifest(root)
 
 
+def validate_input_layout(buildset: dict[str, Any], input_root: Path) -> dict[str, Path]:
+    expect(input_root.is_dir() and not input_root.is_symlink(), "input root is missing or unsafe")
+    expected_keys = {row["key"] for row in buildset["inputArtifacts"]}
+    expect({path.name for path in input_root.iterdir()} == expected_keys, "downloaded input directory set differs from build set")
+    inputs = {key: input_root / key for key in expected_keys}
+    expected_top = {
+        "phase3p-proof-data": {"payloads", "evidence"},
+        "phase4-celestia-appd-linux-arm64": {"payloads", "evidence", "sbom"},
+        "phase4-celestia-node-linux-arm64": {"payloads", "evidence", "sbom"},
+        "phase4-node-linux-arm64": {"payloads", "evidence", "sbom"},
+        "phase4-toolkit-linux-amd64": {"payloads", "evidence", "sbom"},
+        "phase4-toolkit-linux-arm64": {"payloads", "evidence", "sbom"},
+        "phase4-toolkit-macos-arm64": {"SHA256SUMS", "payloads", "evidence", "sbom", "independent-builds"},
+        "phase5-indexer": {"SHA256SUMS", "payload", "evidence"},
+    }
+    expect(set(expected_top) == expected_keys, "Phase-6 input-layout policy differs from pinned inputs")
+    for key, root in inputs.items():
+        expect(root.is_dir() and not root.is_symlink(), f"downloaded input artifact root is unsafe: {key}")
+        children = {path.name: path for path in root.iterdir()}
+        expect(set(children) == expected_top[key], f"downloaded input top-level layout differs: {key}")
+        for name, path in children.items():
+            expect(not path.is_symlink(), f"downloaded input top-level symlink forbidden: {key}/{name}")
+            expected_file = name == "SHA256SUMS"
+            expect(path.is_file() if expected_file else path.is_dir(), f"downloaded input top-level type differs: {key}/{name}")
+    return inputs
+
+
 def assemble(buildset_path: Path, input_root: Path, output: Path, root: Path = ROOT) -> dict[str, Any]:
     buildset, coverage = validate_buildset(buildset_path, root)
-    expect(input_root.is_dir() and not input_root.is_symlink(), "input root is missing or unsafe")
     expect(not output.exists() and output.parent.is_dir(), "candidate output must not already exist")
-    inputs = {row["key"]: input_root / row["key"] for row in buildset["inputArtifacts"]}
-    expect(set(path.name for path in input_root.iterdir()) == set(inputs), "downloaded input directory set differs from build set")
-    expect(all(path.is_dir() and not path.is_symlink() for path in inputs.values()), "downloaded input artifact root is unsafe")
+    inputs = validate_input_layout(buildset, input_root)
     proof_data_pipeline.verify_output(root / "catalog/proof-data/q8b-v1.json", inputs["phase3p-proof-data"])
     checksum_manifest(inputs["phase5-indexer"])
     consolidate_phase4_macos.verify(inputs["phase4-toolkit-macos-arm64"])
@@ -501,6 +525,7 @@ def main() -> int:
     assemble_parser.add_argument("--build-set", type=Path, required=True)
     assemble_parser.add_argument("--input-root", type=Path, required=True)
     assemble_parser.add_argument("--output", type=Path, required=True)
+    assemble_parser.add_argument("--result-output", type=Path)
     verify_parser = sub.add_parser("verify")
     verify_parser.add_argument("--build-set", type=Path, required=True)
     verify_parser.add_argument("--content", type=Path, required=True)
@@ -526,7 +551,9 @@ def main() -> int:
             verify_live_metadata(buildset, load_json(args.metadata), not args.allow_expired)
             print("OK exact audited Phase-6 input metadata")
         elif args.command == "assemble":
-            assemble(args.build_set, args.input_root, args.output)
+            result = assemble(args.build_set, args.input_root, args.output)
+            if args.result_output is not None:
+                create_file_atomic(args.result_output, canonical_bytes(result), 0o644)
         elif args.command == "verify":
             verify_candidate(args.build_set, args.content)
         else:

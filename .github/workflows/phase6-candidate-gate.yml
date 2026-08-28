@@ -50,6 +50,7 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: 33170546601
           artifact-ids: 9685464135
+          merge-multiple: true
           path: input-artifacts/phase3p-proof-data
       - name: Download exact Phase-4 Celestia appd artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -58,6 +59,7 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: 33177534764
           artifact-ids: 9688244894
+          merge-multiple: true
           path: input-artifacts/phase4-celestia-appd-linux-arm64
       - name: Download exact Phase-4 Celestia node artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -66,6 +68,7 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: 33177534764
           artifact-ids: 9688243729
+          merge-multiple: true
           path: input-artifacts/phase4-celestia-node-linux-arm64
       - name: Download exact Phase-4 Midnight node artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -74,6 +77,7 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: 33177534764
           artifact-ids: 9688330126
+          merge-multiple: true
           path: input-artifacts/phase4-node-linux-arm64
       - name: Download exact Phase-4 toolkit Linux amd64 artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -82,6 +86,7 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: 33177534764
           artifact-ids: 9688263793
+          merge-multiple: true
           path: input-artifacts/phase4-toolkit-linux-amd64
       - name: Download exact Phase-4 toolkit Linux arm64 artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -90,6 +95,7 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: 33177534764
           artifact-ids: 9688255774
+          merge-multiple: true
           path: input-artifacts/phase4-toolkit-linux-arm64
       - name: Download exact Phase-4 toolkit macOS arm64 artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -98,6 +104,7 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: 33177534764
           artifact-ids: 9689647047
+          merge-multiple: true
           path: input-artifacts/phase4-toolkit-macos-arm64
       - name: Download exact Phase-5 verified indexer aggregate
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -106,11 +113,12 @@ jobs:
           repository: acedward/midnight-binary-forge
           run-id: 33176004154
           artifact-ids: 9690093579
+          merge-multiple: true
           path: input-artifacts/phase5-indexer
       - name: Assemble and non-executingly verify exact candidate
         run: |
           set -euo pipefail
-          python3 scripts/phase6_candidate.py assemble --build-set catalog/buildsets/initial-warehouse-v1.json --input-root input-artifacts --output verified-content | tail -n 1 > candidate-verification.json
+          python3 scripts/phase6_candidate.py assemble --build-set catalog/buildsets/initial-warehouse-v1.json --input-root input-artifacts --output verified-content --result-output candidate-verification.json
           python3 scripts/phase6_candidate.py verify --build-set catalog/buildsets/initial-warehouse-v1.json --content verified-content
       - name: Retain exact verified content for a fresh job
         id: upload

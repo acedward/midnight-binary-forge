@@ -114,6 +114,34 @@ class Phase6BuildSetTest(unittest.TestCase):
                 with self.subTest(field=field), mock.patch("github_phase6.request", return_value=(adversarial, "")), self.assertRaises(ForgeError):
                     github_phase6.capture_staging(7, artifact["name"], 11, 1, root / f"failed-{field}.json")
 
+    def test_downloaded_input_layout_is_exact_and_rejects_artifact_name_nesting(self) -> None:
+        buildset = load_json(BUILD_SET)
+        top = {
+            "phase3p-proof-data": {"payloads", "evidence"},
+            "phase4-celestia-appd-linux-arm64": {"payloads", "evidence", "sbom"},
+            "phase4-celestia-node-linux-arm64": {"payloads", "evidence", "sbom"},
+            "phase4-node-linux-arm64": {"payloads", "evidence", "sbom"},
+            "phase4-toolkit-linux-amd64": {"payloads", "evidence", "sbom"},
+            "phase4-toolkit-linux-arm64": {"payloads", "evidence", "sbom"},
+            "phase4-toolkit-macos-arm64": {"SHA256SUMS", "payloads", "evidence", "sbom", "independent-builds"},
+            "phase5-indexer": {"SHA256SUMS", "payload", "evidence"},
+        }
+        with tempfile.TemporaryDirectory() as text:
+            root = Path(text)
+            for key, children in top.items():
+                directory = root / key
+                directory.mkdir()
+                for name in children:
+                    if name == "SHA256SUMS":
+                        (directory / name).write_text("fixture\n", encoding="utf-8")
+                    else:
+                        (directory / name).mkdir()
+            phase6_candidate.validate_input_layout(buildset, root)
+            proof = root / "phase3p-proof-data"
+            (proof / "payloads").rename(proof / "proof-data-q8b-wrapper")
+            with self.assertRaisesRegex(ForgeError, "top-level layout"):
+                phase6_candidate.validate_input_layout(buildset, root)
+
 
 class Phase6StreamingVerifierTest(unittest.TestCase):
     def _archive(self, root: Path, value: bytes, mode: int = 0o755) -> tuple[Path, dict]:
