@@ -366,7 +366,7 @@ jobs:
           rustup toolchain install 1.95.0 --profile minimal
           rustup override set 1.95.0 --path upstream
           {
-            echo 'buildCommand=cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid'
+            echo 'buildCommand=cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit --bin midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid'
             echo 'features=no-default-features; erase-proof forbidden'
             printf 'gitCommit='; git -C upstream rev-parse HEAD
             printf 'gitTree='; git -C upstream rev-parse 'HEAD^{tree}'
@@ -383,7 +383,7 @@ jobs:
             xcrun clang --version
             printf 'MACOSX_DEPLOYMENT_TARGET=%s\nSOURCE_DATE_EPOCH=%s\nCARGO_INCREMENTAL=%s\n' "$MACOSX_DEPLOYMENT_TARGET" "$SOURCE_DATE_EPOCH" "$CARGO_INCREMENTAL"
           } >"$out/evidence/build-and-system.log" 2>&1
-          (cd upstream && cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid) 2>&1 | tee -a "$out/evidence/build-and-system.log"
+          (cd upstream && cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit --bin midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid) 2>&1 | tee -a "$out/evidence/build-and-system.log"
           cp upstream/target/release/midnight-node-toolkit "$work/package/midnight-node-toolkit"
           chmod 0755 "$work/package/midnight-node-toolkit"
           python3 scripts/validate_native.py --binary "$work/package/midnight-node-toolkit" --os macos --arch arm64 --runner-os macos --runner-arch arm64 \
