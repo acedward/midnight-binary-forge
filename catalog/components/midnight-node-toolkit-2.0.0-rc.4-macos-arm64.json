@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "component-v1",
+  "componentId": "midnight-node-toolkit-2.0.0-rc.4-macos-arm64",
+  "artifactKind": "software",
+  "family": "midnight-node-toolkit",
+  "version": "2.0.0-rc.4",
+  "operation": "build",
+  "source": {
+    "repository": "midnightntwrk/midnight-node",
+    "commitSha": "651e043b61ed445bf7a5066c60c87ea7bd606073",
+    "treeSha": "5c34f67538f20811d876f6463cf9aca5a3bc4fc9",
+    "tag": "node-2.0.0-rc.4",
+    "lockedDependencies": true,
+    "toolchain": "rustup-channel-1.95.0@sha256:821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9",
+    "toolchainDigest": "821ff14e4c4a1cbe1e8915f35aff0a3fbbdf8d293ad48ab8f31e3b0440c581f9",
+    "buildFlags": ["cargo-auditable-0.7.5-asset-sha256:92720fff2be27492ca7b216510a27e88a835b526e9e94e46bc36b502ba17d8f0", "cargo-auditable-wrapper-path:$RUNNER_TEMP/phase4-macos-build/tool/cargo-auditable", "forge-phase4-evidence-closure-toolchain-v1@sha256:a5f6a0b22ec5e511d8b85641edb94226c89f4471fa417e752609112f242bfcc5", "cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit --bin midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid", "no-default-features", "forbid-erase-proof", "MACOSX_DEPLOYMENT_TARGET=13.0", "SOURCE_DATE_EPOCH=1783616457", "CARGO_INCREMENTAL=0"]
+  },
+  "destination": {"repository": "effectstream/binaries", "tag": "0.3.120"},
+  "distributionTier": "development-only",
+  "releaseMutability": "mutable-warehouse",
+  "license": {"spdx": "Apache-2.0", "evidence": [{"url": "https://raw.githubusercontent.com/midnightntwrk/midnight-node/651e043b61ed445bf7a5066c60c87ea7bd606073/LICENSE", "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"}]},
+  "naming": {"outerTemplate": "midnight-node-toolkit-{os}-{arch}-{version}.zip", "container": "zip", "appendOnly": true, "members": [{"path": "midnight-node-toolkit", "type": "file", "mode": "0755"}], "limits": {"maxCompressedBytes": 134217728, "maxExpandedBytes": 268435456, "maxMembers": 1, "maxExpansionRatio": 8}},
+  "install": {"mode": "0755", "pathTemplate": "midnight-node-toolkit"},
+  "targets": [{"os": "macos", "arch": "arm64", "tier": "required", "runner": "macos-15", "native": true}],
+  "compatibility": {"kind": "software-runtime", "runtime": "Source package 2.0.0 / Midnight node 2.0.0 / base Ledger 7.0.3 / CompactC 0.31.0-6587676a9bb2; release identity 2.0.0-rc.4"},
+  "signing": {"applicability": "macos", "distributionSigningState": "UNSIGNED_DEVELOPMENT_ONLY"},
+  "sbom": {"formats": ["spdx-json", "cyclonedx-json"]},
+  "validation": {"probes": ["sha256", "size", "archive-safety", "member-contract", "native-architecture", "native-linkage", "version", "help", "runtime-smoke"]}
+}

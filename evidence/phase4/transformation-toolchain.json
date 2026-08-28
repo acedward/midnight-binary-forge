@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "phase4-transformation-toolchain-v1",
+  "python": "3.12",
+  "zipCompression": "deflate-9",
+  "scripts": [
+    {
+      "path": "scripts/fetch_verified.py",
+      "sha256": "23302c027b40b74157b8fbf2d8de8be2cd5ea7cc390a54774617c32d5f3a67f2"
+    },
+    {
+      "path": "scripts/package_deterministic.py",
+      "sha256": "4b82303be6a60a439a398a24ea9eb52bc49ed148d81b1e62a887f66870cea8bb"
+    },
+    {
+      "path": "scripts/phase4_payloads.py",
+      "sha256": "3c5f75d2bb16fe7fa5527e88fd1c9a1cbecfc317efc8bbba206c95e10c529d7d"
+    }
+  ]
+}

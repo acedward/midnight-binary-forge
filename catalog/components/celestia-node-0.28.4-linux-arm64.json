@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "component-v1",
+  "componentId": "celestia-node-0.28.4-linux-arm64",
+  "artifactKind": "software",
+  "family": "celestia-node",
+  "version": "0.28.4",
+  "operation": "rename-only",
+  "source": {
+    "repository": "celestiaorg/celestia-node",
+    "commitSha": "52cd8b52ec031bb9e3b4e476e0b159db2053384c",
+    "treeSha": "1f23daad3fe378c3ee51593d0c2e1d8a26f64515",
+    "tag": "v0.28.4",
+    "asset": {"id": 321528010, "name": "celestia-node_Linux_arm64.tar.gz", "url": "https://github.com/celestiaorg/celestia-node/releases/download/v0.28.4/celestia-node_Linux_arm64.tar.gz", "size": 71184641, "sha256": "09eb0505c5265bb08dfd09f14aa397516efd89d7b8f120e06f133d9e387ad50c"}
+  },
+  "destination": {"repository": "effectstream/binaries", "tag": "0.3.120"},
+  "distributionTier": "development-only",
+  "releaseMutability": "mutable-warehouse",
+  "license": {"spdx": "Apache-2.0", "evidence": [{"url": "https://raw.githubusercontent.com/celestiaorg/celestia-node/52cd8b52ec031bb9e3b4e476e0b159db2053384c/LICENSE", "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"}]},
+  "naming": {"outerTemplate": "celestia-node-{os}-{arch}-v{version}.tar.gz", "container": "tar.gz", "appendOnly": true, "members": [{"path": "LICENSE", "type": "file", "mode": "0644"}, {"path": "README.md", "type": "file", "mode": "0644"}, {"path": "celestia", "type": "file", "mode": "0755"}], "limits": {"maxCompressedBytes": 134217728, "maxExpandedBytes": 268435456, "maxMembers": 3, "maxExpansionRatio": 4}},
+  "install": {"mode": "0755", "pathTemplate": "celestia"},
+  "targets": [{"os": "linux", "arch": "arm64", "tier": "desired", "runner": "ubuntu-24.04-arm", "native": true}],
+  "compatibility": {"kind": "software-runtime", "runtime": "Celestia node 0.28.4"},
+  "signing": {"applicability": "not-applicable", "distributionSigningState": "NOT_APPLICABLE"},
+  "sbom": {"formats": ["spdx-json", "cyclonedx-json"]},
+  "validation": {"probes": ["sha256", "size", "archive-safety", "member-contract", "native-architecture", "native-linkage", "version", "help", "runtime-smoke"]}
+}

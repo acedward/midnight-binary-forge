@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "phase4-evidence-closure-toolchain-v1",
+  "scripts": [
+    {
+      "path": "scripts/consolidate_phase4_macos.py",
+      "sha256": "f1aad73e6c4a66e680ca9e07a33979bd5db9aebae39b1d0aee87b1a7d3d0c6b5"
+    },
+    {
+      "path": "scripts/validate_phase4_contract.py",
+      "sha256": "64bc44edf24db4fc6df27b835b95b72df257dd99efe077c627002fdbb05f33d3"
+    }
+  ]
+}
