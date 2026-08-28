@@ -1,0 +1,547 @@
+{
+  "schemaVersion": "phase0-source-pins-v1",
+  "capturedAt": "2026-08-28T02:50:00Z",
+  "runnerLabels": {
+    "evidenceUrl": "https://docs.github.com/en/actions/reference/runners/github-hosted-runners",
+    "selected": [
+      {
+        "label": "ubuntu-24.04",
+        "os": "linux",
+        "arch": "amd64",
+        "tier": "required"
+      },
+      {
+        "label": "ubuntu-24.04-arm",
+        "os": "linux",
+        "arch": "arm64",
+        "tier": "desired",
+        "availability": "public-preview"
+      },
+      {
+        "label": "macos-15",
+        "os": "macos",
+        "arch": "arm64",
+        "tier": "required"
+      },
+      {
+        "label": "macos-15-intel",
+        "os": "macos",
+        "arch": "amd64",
+        "tier": "optional-indexer"
+      }
+    ],
+    "crossOsSubstitutionAllowed": false
+  },
+  "githubReleaseConstraints": {
+    "evidenceUrl": "https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases#storage-and-bandwidth-quotas",
+    "maximumAssetCount": 1000,
+    "perAssetLimit": "under 2 GiB",
+    "maximumAssetBytes": 2147483647,
+    "totalReleaseSizeLimit": null,
+    "candidateNamePolicy": "Every destination name is unique in release 0.3.120; uploads are create-only with no clobber.",
+    "excludedForSize": [
+      {
+        "name": "bls_midnight_2p24",
+        "bytes": 3221225860
+      },
+      {
+        "name": "bls_midnight_2p25",
+        "bytes": 6442451332
+      }
+    ]
+  },
+  "sources": {
+    "compact": {
+      "repository": "LFDT-Minokawa/compact",
+      "tag": "compactc-v0.34.0",
+      "commit": "1f671fc27818df2b2676b3a97f85b2b821756243",
+      "releaseId": 376637083,
+      "releaseNodeId": "RE_kwDOQnquic4Wcwab",
+      "runtime": "0.19.0",
+      "ledger": 9,
+      "language": "0.26.0",
+      "policy": "direct-upstream-only-never-warehouse",
+      "assets": [
+        {
+          "id": 529639504,
+          "nodeId": "RA_kwDOQnquic4fkahQ",
+          "name": "compactc_v0.34.0_aarch64-darwin.zip",
+          "size": 30582494,
+          "sha256": "ce458c4062f1a1dd2920591a0bb5ab657be02f4ab8422f2d76988773f60103c3",
+          "os": "macos",
+          "arch": "arm64"
+        },
+        {
+          "id": 529639503,
+          "nodeId": "RA_kwDOQnquic4fkahP",
+          "name": "compactc_v0.34.0_x86_64-darwin.zip",
+          "size": 31636338,
+          "sha256": "3dee1fdd0d5cad1335e3a780747b640e2f74010e8f8f63117f3f81f4bea58a81",
+          "os": "macos",
+          "arch": "amd64"
+        },
+        {
+          "id": 529639502,
+          "nodeId": "RA_kwDOQnquic4fkahO",
+          "name": "compactc_v0.34.0_aarch64-unknown-linux-musl.zip",
+          "size": 32033767,
+          "sha256": "d3e292c4f48e257dcd6b3d3e3e4743d7d8ea0729f48953eab91a366d44cd026d",
+          "os": "linux",
+          "arch": "arm64"
+        },
+        {
+          "id": 529639505,
+          "nodeId": "RA_kwDOQnquic4fkahR",
+          "name": "compactc_v0.34.0_x86_64-unknown-linux-musl.zip",
+          "size": 32947390,
+          "sha256": "775ccddf5a71399835329bbf7471ba5a8c54fcc825d372c75e19ba7042069584",
+          "os": "linux",
+          "arch": "amd64"
+        }
+      ]
+    },
+    "midnightNodeToolkit": {
+      "repository": "midnightntwrk/midnight-node",
+      "tag": "node-2.0.0-rc.4",
+      "releaseId": 351676950,
+      "releaseNodeId": "RE_kwDOOtcRVc4U9ioW",
+      "commit": "651e043b61ed445bf7a5066c60c87ea7bd606073",
+      "tree": "5c34f67538f20811d876f6463cf9aca5a3bc4fc9",
+      "rust": "1.95.0",
+      "macosBuildPackage": "midnight-node-toolkit",
+      "macosBuildCommand": "cargo auditable build --locked --release -p midnight-node-toolkit",
+      "linuxInputs": [
+        {
+          "id": 471563135,
+          "nodeId": "RA_kwDOOtcRVc4cG3t_",
+          "name": "midnight-node-toolkit-2.0.0-rc.4-linux-amd64.tar.gz",
+          "size": 50581636,
+          "sha256": "fdd9f6974c1c20928d3b9dc79c13c51bf984eb6dc4cdaf1978a1b037794402de"
+        },
+        {
+          "id": 471563203,
+          "nodeId": "RA_kwDOOtcRVc4cG3vD",
+          "name": "midnight-node-toolkit-2.0.0-rc.4-linux-arm64.tar.gz",
+          "size": 48937006,
+          "sha256": "85513afbfe4dd3fccadde6ad5d7ccf82b8fa0c88d010445fc62c223c9ef078eb"
+        }
+      ]
+    },
+    "indexer": {
+      "repository": "midnightntwrk/midnight-indexer",
+      "tag": "v4.4.0-rc.3",
+      "annotatedTagObject": "f0e8019c0d3c8480f14914bdd721357cfb29c073",
+      "commit": "56561b2f5cf5c6839f678257fc69bed1a8b9ba2c",
+      "tree": "ebc2936215c8791e8bc9e5590b07991bd01878f2",
+      "tagSignatureVerified": true,
+      "rust": "1.95.0",
+      "feature": "standalone"
+    },
+    "celestiaApp": {
+      "repository": "celestiaorg/celestia-app",
+      "tag": "v6.4.10",
+      "commit": "0b26ea0cf0b52406d6004cef4a36e13c30ddca85",
+      "tree": "2fd5a31e9cb4ff326b22a1a5156003311cbcf466",
+      "releaseId": 282480015,
+      "linuxArm64Input": {
+        "id": 349955149,
+        "name": "celestia-app_Linux_arm64.tar.gz",
+        "size": 180685852,
+        "sha256": "52cc9d59f9db5e3d2b7de91008c808f46ba319922db4a39404735b0a5dd6a76b"
+      }
+    },
+    "celestiaNode": {
+      "repository": "celestiaorg/celestia-node",
+      "tag": "v0.28.4",
+      "commit": "52cd8b52ec031bb9e3b4e476e0b159db2053384c",
+      "tree": "1f23daad3fe378c3ee51593d0c2e1d8a26f64515",
+      "releaseId": 265784044,
+      "linuxArm64Input": {
+        "id": 321528010,
+        "name": "celestia-node_Linux_arm64.tar.gz",
+        "size": 71184641,
+        "sha256": "09eb0505c5265bb08dfd09f14aa397516efd89d7b8f120e06f133d9e387ad50c"
+      }
+    },
+    "trustedSetup": {
+      "repository": "midnightntwrk/midnight-trusted-setup",
+      "commit": "3ea610263b228af24840f7b00661ee22360db6d8",
+      "tree": "19888a217d9228324dff60b685b50deea4afcac5",
+      "commitSignatureVerified": true,
+      "rootPotSha256": "df7a1e9fcd6d3f6e8ddd777914c40c44cd29777b769e608c0604fbfbe83121ce",
+      "license": "Apache-2.0",
+      "catalogPath": "MIDNIGHT_SRS_CATALOG.md"
+    },
+    "ledgerStatic9": {
+      "repository": "midnightntwrk/midnight-ledger",
+      "commit": "7a89f45d29792be7e09ca5eb246f1e69f0b2a179",
+      "tree": "0b39ecaa6502dcb05352786df2b02bb0a622ee38",
+      "commitSignatureVerified": true,
+      "proofServerVersion": "9.0.0-rc.5",
+      "ledgerStaticSemver": "9.0.0",
+      "cacheNamespace": "9"
+    },
+    "ledgerStatic10Negative": {
+      "repository": "midnightntwrk/midnight-ledger",
+      "commit": "cd652d7f97b34b805bb5f0310ce7434eb883af38",
+      "tree": "bfa37732f879bd29b4a67f7a1567260431c0f43b",
+      "commitSignatureVerified": true,
+      "proofServerVersion": "9.0.0-rc.7",
+      "ledgerStaticSemver": "10.0.0",
+      "cacheNamespace": "10"
+    }
+  },
+  "proofServerCompatibility": {
+    "positive": {
+      "version": "9.0.0-rc.5",
+      "sourceCommit": "7a89f45d29792be7e09ca5eb246f1e69f0b2a179",
+      "images": {
+        "plain": "sha256:d96a4d0f3f0f10f82698288443f2873a32fed180eb8f93c0bae83572c0a187a9",
+        "plainPlatforms": {
+          "linux/amd64": "sha256:e912e04c48a7fdd385f05b313e4b52e0452cd8ccf6368816fa0c2effb5eb2361",
+          "linux/arm64": "sha256:52056fdd69e86fbe94e11dc7c6243c4251c7d2ccf56390c8e555e01be0508b40"
+        },
+        "experimental": "sha256:4f02ca2734649eb238d13924df299b1c82bd5546ec928c5d67bdd0ce86dd0bd1",
+        "experimentalPlatforms": {
+          "linux/amd64": "sha256:4db380b1434492896a144a5ffc083a145d30dc68af64e43e5b4813efa118a09a",
+          "linux/arm64": "sha256:83eb40f64db7c8d4a5972352da2bc4a86e4e2963bccdcd96b5116d1a640cf709"
+        }
+      },
+      "srs": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8",
+      "ledgerStatic": "9.0.0",
+      "cacheNamespace": "9"
+    },
+    "negative": {
+      "version": "9.0.0-rc.7",
+      "sourceCommit": "cd652d7f97b34b805bb5f0310ce7434eb883af38",
+      "images": {
+        "amd64": "sha256:c22331706f2ec5e946bb93aa03785b3059f649ac17bfc8e5fb731349f07d9613",
+        "arm64": "sha256:d7fbdcb0fd3eeadded75415716f7792f5ea2296c432bdebd97e834a9fef3f1eb"
+      },
+      "registryPlatformVerification": {
+        "sha256:c22331706f2ec5e946bb93aa03785b3059f649ac17bfc8e5fb731349f07d9613": "linux/amd64",
+        "sha256:d7fbdcb0fd3eeadded75415716f7792f5ea2296c432bdebd97e834a9fef3f1eb": "linux/arm64"
+      },
+      "publicMultiarchTag": false,
+      "mayReuseSrs": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8",
+      "mustRejectLedgerStatic": "9.0.0",
+      "requiresLedgerStatic": "10.0.0",
+      "cacheNamespace": "10"
+    }
+  },
+  "cacheBehavior": {
+    "defaultSourceUrl": "https://srs.midnight.network/",
+    "cacheRootResolution": [
+      "MIDNIGHT_PP",
+      "XDG_CACHE_HOME/midnight/zk-params",
+      "$HOME/.cache/midnight/zk-params"
+    ],
+    "installedSrsNamePattern": "bls_midnight_2p{k}",
+    "officialSrsNamePattern": "midnight-srs-2p{k}",
+    "startupPrefetchK": [
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "ledgerStaticPaths": [
+      "zswap/9/*",
+      "dust/9/*"
+    ],
+    "githubReleaseCannotReplaceFlatSourceNamespace": true,
+    "cacheGenerationIdentity": "canonical combined SRS-plus-Ledger-static member-manifest SHA-256"
+  },
+  "proofData": {
+    "srsGeneration": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8",
+    "k0Generation": "midnight-ledger-provider-compat@7a89f45d29792be7e09ca5eb246f1e69f0b2a179/sha256:59b30b3114a34ccbbfb599376e178fb8d9b3366cae2174c2f1da20e75847f823",
+    "srs": [
+      {
+        "k": 0,
+        "releaseName": "bls_midnight_2p0",
+        "installName": "bls_midnight_2p0",
+        "officialAlias": null,
+        "size": 580,
+        "sha256": "59b30b3114a34ccbbfb599376e178fb8d9b3366cae2174c2f1da20e75847f823",
+        "mode": "0644",
+        "generation": "midnight-ledger-provider-compat@7a89f45d29792be7e09ca5eb246f1e69f0b2a179/sha256:59b30b3114a34ccbbfb599376e178fb8d9b3366cae2174c2f1da20e75847f823"
+      },
+      {
+        "k": 1,
+        "releaseName": "bls_midnight_2p1",
+        "installName": "bls_midnight_2p1",
+        "officialAlias": "midnight-srs-2p1",
+        "size": 772,
+        "sha256": "bbe04fe3c70d0c138447cb086b4baddc30cb8bb2a004114bc02e6f739516280e",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 2,
+        "releaseName": "bls_midnight_2p2",
+        "installName": "bls_midnight_2p2",
+        "officialAlias": "midnight-srs-2p2",
+        "size": 1156,
+        "sha256": "80e15568fa1a0117db893239be7fa5e34a6bcc3a8c3bfa7709534b9cb88eb6c1",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 3,
+        "releaseName": "bls_midnight_2p3",
+        "installName": "bls_midnight_2p3",
+        "officialAlias": "midnight-srs-2p3",
+        "size": 1924,
+        "sha256": "4be827a6472193df80d8f08b4b25a85baef436fdd1965d89b6af89f4ec4e99e2",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 4,
+        "releaseName": "bls_midnight_2p4",
+        "installName": "bls_midnight_2p4",
+        "officialAlias": "midnight-srs-2p4",
+        "size": 3460,
+        "sha256": "232f401fad10c7ddf8828d2aa4c85c6506c5da09795998cecaeb9f75fc8f6ada",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 5,
+        "releaseName": "bls_midnight_2p5",
+        "installName": "bls_midnight_2p5",
+        "officialAlias": "midnight-srs-2p5",
+        "size": 6532,
+        "sha256": "0a1c9229f315fc1868ff25f668fb83aec4d09f4f23a706b5197c692c619d72c6",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 6,
+        "releaseName": "bls_midnight_2p6",
+        "installName": "bls_midnight_2p6",
+        "officialAlias": "midnight-srs-2p6",
+        "size": 12676,
+        "sha256": "cf2ad6be7d0fedf5bec2aaa35f6be4aca33053d74268fdf5aa54fcb2891ea6df",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 7,
+        "releaseName": "bls_midnight_2p7",
+        "installName": "bls_midnight_2p7",
+        "officialAlias": "midnight-srs-2p7",
+        "size": 24964,
+        "sha256": "e82ae890c080188355f37feaffe91372584cd810615082d9143d4dec0453fd9d",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 8,
+        "releaseName": "bls_midnight_2p8",
+        "installName": "bls_midnight_2p8",
+        "officialAlias": "midnight-srs-2p8",
+        "size": 49540,
+        "sha256": "909b707551eaaea79828e883cde6fc46ab15986c3b1d791bed462c9e2805c933",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 9,
+        "releaseName": "bls_midnight_2p9",
+        "installName": "bls_midnight_2p9",
+        "officialAlias": "midnight-srs-2p9",
+        "size": 98692,
+        "sha256": "b9009f1098bcefffec3c461ab3a5e3a17f7e5599f0f08c70fcdc55a89227bcbd",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 10,
+        "releaseName": "bls_midnight_2p10",
+        "installName": "bls_midnight_2p10",
+        "officialAlias": "midnight-srs-2p10",
+        "size": 196996,
+        "sha256": "46b2290933cbed4c378889e4ba971f1a92888331ffb09466acd4ff61a1e2cb42",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 11,
+        "releaseName": "bls_midnight_2p11",
+        "installName": "bls_midnight_2p11",
+        "officialAlias": "midnight-srs-2p11",
+        "size": 393604,
+        "sha256": "9901589d7956ff58be0d85569b2f455b77b58c3758026ffb5bbe4807000b96d1",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 12,
+        "releaseName": "bls_midnight_2p12",
+        "installName": "bls_midnight_2p12",
+        "officialAlias": "midnight-srs-2p12",
+        "size": 786820,
+        "sha256": "ef08eb3fcf62df8f72c515cffa027e681808b530cb016eea104115545ef6d5c8",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 13,
+        "releaseName": "bls_midnight_2p13",
+        "installName": "bls_midnight_2p13",
+        "officialAlias": "midnight-srs-2p13",
+        "size": 1573252,
+        "sha256": "d3324910969c4cc54143b8045b649e5c3a4bd5fb7b8f85fe1b770f640ce1c803",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 14,
+        "releaseName": "bls_midnight_2p14",
+        "installName": "bls_midnight_2p14",
+        "officialAlias": "midnight-srs-2p14",
+        "size": 3146116,
+        "sha256": "fc253016885ec830e97808c9ec920bb5cab5c21af590380a6cb5eb0538e2b244",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 15,
+        "releaseName": "bls_midnight_2p15",
+        "installName": "bls_midnight_2p15",
+        "officialAlias": "midnight-srs-2p15",
+        "size": 6291844,
+        "sha256": "724c7c3d779148bb113c7ee9c034b2f27db16e6bdf315fde90105a9bad00b1de",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 16,
+        "releaseName": "bls_midnight_2p16",
+        "installName": "bls_midnight_2p16",
+        "officialAlias": "midnight-srs-2p16",
+        "size": 12583300,
+        "sha256": "09c877216d6589b370263e18af40a030a901b41a7a7c37ef58c9901db41f05c6",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 17,
+        "releaseName": "bls_midnight_2p17",
+        "installName": "bls_midnight_2p17",
+        "officialAlias": "midnight-srs-2p17",
+        "size": 25166212,
+        "sha256": "4a9ef6c7c0619aab74eede44b13e753e3ba54508a02dd3b7106a949aabb73b74",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 18,
+        "releaseName": "bls_midnight_2p18",
+        "installName": "bls_midnight_2p18",
+        "officialAlias": "midnight-srs-2p18",
+        "size": 50332036,
+        "sha256": "e8436dc5d8b598f169c127c745135d889744007e6d384ff126df8d1332522f86",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      },
+      {
+        "k": 19,
+        "releaseName": "bls_midnight_2p19",
+        "installName": "bls_midnight_2p19",
+        "officialAlias": "midnight-srs-2p19",
+        "size": 100663684,
+        "sha256": "8e8dc15c4362f05c912f1e770559a3945db3e58a374def416ed5d3e65ad5b10e",
+        "mode": "0644",
+        "generation": "midnight-trusted-setup@3ea610263b228af24840f7b00661ee22360db6d8"
+      }
+    ],
+    "srsAggregateBytes": 201334160,
+    "ledgerStatic": {
+      "releaseName": "midnight-ledger-static-noarch-9.0.0.zip",
+      "semver": "9.0.0",
+      "namespace": "9",
+      "memberManifestSha256": null,
+      "memberManifestStatus": "computed after deterministic Phase 3p assembly",
+      "members": [
+        {
+          "path": "zswap/9/spend.prover",
+          "size": 11020001,
+          "sha256": "19d234b5c68b7212ad6b0ec9334a95594748154128f3704eb576bcc843cc5c45",
+          "mode": "0644"
+        },
+        {
+          "path": "zswap/9/spend.verifier",
+          "size": 2311,
+          "sha256": "544554effd7ae9fb9063be52a9ec2a986756301071fcd97bb4598fb45a335658",
+          "mode": "0644"
+        },
+        {
+          "path": "zswap/9/spend.bzkir",
+          "size": 1294,
+          "sha256": "7cb5bbcf67cb212a3336fb439a77e8f32f0aa8a56185c8e1247d6cbfc7300205",
+          "mode": "0644"
+        },
+        {
+          "path": "zswap/9/output.prover",
+          "size": 5730182,
+          "sha256": "d992b04f13c3fd432f55fb8bfe6466d87bc181f1a2acf233ec228030bbdd4ed8",
+          "mode": "0644"
+        },
+        {
+          "path": "zswap/9/output.verifier",
+          "size": 2311,
+          "sha256": "72e8074856f2f5c504ade25a86a2b8902c64aeb9497c4c8e6b26dea842a0ab08",
+          "mode": "0644"
+        },
+        {
+          "path": "zswap/9/output.bzkir",
+          "size": 494,
+          "sha256": "91dc8b401dd8385e8d29eaac018c70b578505f48c7952452ef319bc397fa1f1b",
+          "mode": "0644"
+        },
+        {
+          "path": "zswap/9/sign.prover",
+          "size": 2814823,
+          "sha256": "fe7268dd2bdd107f862f881ac3c5bc71a6df77ce80bfed51cf71514648e660e0",
+          "mode": "0644"
+        },
+        {
+          "path": "zswap/9/sign.verifier",
+          "size": 2023,
+          "sha256": "e39a727caa0de167e6dd6122a9e3b758fecf48f9093ab77c0309648de8ce07e1",
+          "mode": "0644"
+        },
+        {
+          "path": "zswap/9/sign.bzkir",
+          "size": 114,
+          "sha256": "37ea2094516e145a738126307cf92bd293f7cb524b1ccd49fa6f3225a9ec3a50",
+          "mode": "0644"
+        },
+        {
+          "path": "dust/9/spend.prover",
+          "size": 2175671,
+          "sha256": "996602da7ca386284e656c78ea03e55bffdba29475e6a67965c50de05e13efc2",
+          "mode": "0644"
+        },
+        {
+          "path": "dust/9/spend.verifier",
+          "size": 1351,
+          "sha256": "3f1569ebcab0655c5c145b28947c74edc4e3f5c6b276e4404b661cf0905b49d3",
+          "mode": "0644"
+        },
+        {
+          "path": "dust/9/spend.bzkir",
+          "size": 2555,
+          "sha256": "904181287e75b0fb596ba5fcc116c882ee5d28e3115304c93ebd913722ce5841",
+          "mode": "0644"
+        }
+      ],
+      "aggregateMemberBytes": 21753130
+    },
+    "initialPayloadCount": 21,
+    "initialAggregateCanonicalBytes": 223087290
+  }
+}

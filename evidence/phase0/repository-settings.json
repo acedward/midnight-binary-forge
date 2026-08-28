@@ -1,0 +1,151 @@
+{
+  "capturedAt": "2026-08-28T02:52:25Z",
+  "forge": {
+    "actions": {
+      "allowed_actions": "all",
+      "enabled": true,
+      "sha_pinning_required": false
+    },
+    "actionsSecretCount": 0,
+    "candidatePublishEnvironment": {
+      "deploymentBranchPolicy": {
+        "custom_branch_policies": false,
+        "protected_branches": true
+      },
+      "name": "candidate-publish",
+      "protectionRules": [
+        {
+          "id": 63909398,
+          "node_id": "GA_kwDOUGoNOs4Dzy4W",
+          "type": "branch_policy"
+        }
+      ]
+    },
+    "codeowners": {
+      "htmlUrl": "https://github.com/acedward/midnight-binary-forge/blob/main/.github/CODEOWNERS",
+      "sha": "abc3d4dbe85d7238bac5ba157f27eef2b2860ad0",
+      "size": 96
+    },
+    "defaultBranchRuleset": {
+      "bypassActors": [],
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": [
+            "~DEFAULT_BRANCH"
+          ]
+        }
+      },
+      "currentUserCanBypass": "never",
+      "enforcement": "active",
+      "id": 21700117,
+      "name": "Protect default branch",
+      "nodeId": "RRS_lACqUmVwb3NpdG9yec5Qag06zgFLHhU",
+      "rules": [
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        },
+        {
+          "parameters": {
+            "allowed_merge_methods": [
+              "merge",
+              "squash",
+              "rebase"
+            ],
+            "dismiss_stale_reviews_on_push": false,
+            "require_code_owner_review": false,
+            "require_extra_approval_for_unattributed_changes": true,
+            "require_last_push_approval": false,
+            "required_approving_review_count": 0,
+            "required_review_thread_resolution": true,
+            "required_reviewers": []
+          },
+          "type": "pull_request"
+        }
+      ],
+      "target": "branch"
+    },
+    "environmentSecretCount": 0,
+    "governanceMerge": "cf86c451b5edb8266cfb31d37bb0a3766dce0230",
+    "immutableReleases": {
+      "enabled": true,
+      "enforced_by_owner": false
+    },
+    "repository": {
+      "defaultBranch": "main",
+      "fullName": "acedward/midnight-binary-forge",
+      "id": 1349127482,
+      "license": "Apache-2.0",
+      "nodeId": "R_kgDOUGoNOg",
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "pull": true,
+        "push": true,
+        "triage": true
+      },
+      "visibility": "public"
+    },
+    "workflowCount": 0,
+    "workflowDefaults": {
+      "can_approve_pull_request_reviews": false,
+      "default_workflow_permissions": "read"
+    }
+  },
+  "schemaVersion": "phase0-repository-settings-v1",
+  "warehouse": {
+    "actions": {
+      "allowed_actions": "all",
+      "enabled": true,
+      "sha_pinning_required": false
+    },
+    "actionsSecretCount": 0,
+    "destinationPolicy": {
+      "actionsWriteWorkflow": false,
+      "immutableReleaseRequired": false,
+      "productionEnvironment": false,
+      "releaseId": 270761136,
+      "releaseImmutable": false,
+      "releaseNodeId": "RE_kwDOQpztJs4QI3yw",
+      "releaseTag": "0.3.120",
+      "successorRelease": false
+    },
+    "environments": [],
+    "governanceMerge": "2a73418705d67e330e7a8bce4dd0a033a01f41b7",
+    "repository": {
+      "defaultBranch": "main",
+      "fullName": "effectstream/binaries",
+      "id": 1117580582,
+      "nodeId": "R_kgDOQpztJg",
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "pull": true,
+        "push": true,
+        "triage": true
+      },
+      "visibility": "public"
+    },
+    "testedRuns": {
+      "intentionalFailure": 33136864070,
+      "recoverySuccess": 33136999046
+    },
+    "workflowDefaults": {
+      "can_approve_pull_request_reviews": false,
+      "default_workflow_permissions": "read"
+    },
+    "workflows": [
+      {
+        "htmlUrl": "https://github.com/effectstream/binaries/blob/main/.github/workflows/release-drift.yml",
+        "id": 344273313,
+        "name": "Release drift",
+        "nodeId": "W_kwDOQpztJs4UhTGh",
+        "path": ".github/workflows/release-drift.yml",
+        "state": "active"
+      }
+    ]
+  }
+}
