@@ -329,7 +329,6 @@ jobs:
           fetch-depth: 1
       - name: Native locked build, inspection, probes, package, and evidence
         env:
-          BUILD_ID: ${{ matrix.build_id }}
           SOURCE_DATE_EPOCH: '1783616457'
           MACOSX_DEPLOYMENT_TARGET: '13.0'
           CARGO_INCREMENTAL: '0'
@@ -343,8 +342,10 @@ jobs:
           test "$(shasum -a 256 upstream/Cargo.lock | cut -d' ' -f1)" = 5e95c05593b49eda1cd017e1ebbfafa8df321fb42c9a6011f3fba3e8491fed91
           grep -Fq 'default = []' upstream/util/toolkit/Cargo.toml
           grep -Fq 'erase-proof' upstream/util/toolkit/Cargo.toml
-          work="$RUNNER_TEMP/phase4-macos-build-$BUILD_ID"
-          out="$GITHUB_WORKSPACE/phase4-output-toolkit-macos-arm64-build$BUILD_ID"
+          build_id='${{ matrix.build_id }}'
+          case "$build_id" in 1|2) ;; *) exit 2 ;; esac
+          work="$RUNNER_TEMP/phase4-macos-build-$build_id"
+          out="$GITHUB_WORKSPACE/phase4-output-toolkit-macos-arm64-build$build_id"
           mkdir -p "$work/download" "$work/tool" "$work/package" "$out/payloads" "$out/evidence" "$out/sbom"
           python3 scripts/fetch_verified.py --url https://static.rust-lang.org/dist/channel-rust-1.95.0.toml \
             --output "$work/download/channel-rust-1.95.0.toml" --size 848342 \
@@ -365,7 +366,7 @@ jobs:
           rustup toolchain install 1.95.0 --profile minimal
           rustup override set 1.95.0 --path upstream
           {
-            echo 'buildCommand=cargo auditable build --locked --release --no-default-features -p midnight-node-toolkit'
+            echo 'buildCommand=cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid'
             echo 'features=no-default-features; erase-proof forbidden'
             printf 'gitCommit='; git -C upstream rev-parse HEAD
             printf 'gitTree='; git -C upstream rev-parse 'HEAD^{tree}'
@@ -382,7 +383,7 @@ jobs:
             xcrun clang --version
             printf 'MACOSX_DEPLOYMENT_TARGET=%s\nSOURCE_DATE_EPOCH=%s\nCARGO_INCREMENTAL=%s\n' "$MACOSX_DEPLOYMENT_TARGET" "$SOURCE_DATE_EPOCH" "$CARGO_INCREMENTAL"
           } >"$out/evidence/build-and-system.log" 2>&1
-          (cd upstream && cargo auditable build --locked --release --no-default-features -p midnight-node-toolkit) 2>&1 | tee -a "$out/evidence/build-and-system.log"
+          (cd upstream && cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid) 2>&1 | tee -a "$out/evidence/build-and-system.log"
           cp upstream/target/release/midnight-node-toolkit "$work/package/midnight-node-toolkit"
           chmod 0755 "$work/package/midnight-node-toolkit"
           python3 scripts/validate_native.py --binary "$work/package/midnight-node-toolkit" --os macos --arch arm64 --runner-os macos --runner-arch arm64 \
@@ -394,6 +395,7 @@ jobs:
             vtool -show-build "$work/package/midnight-node-toolkit"
           } >>"$out/evidence/build-and-system.log"
           vtool -show-build "$work/package/midnight-node-toolkit" | grep -Eq 'minos[[:space:]]+13(\.0)?'
+          if otool -l "$work/package/midnight-node-toolkit" | grep -Fq 'cmd LC_UUID'; then exit 2; fi
           if otool -L "$work/package/midnight-node-toolkit" | grep -E '/nix/store|/opt/homebrew|/usr/local'; then exit 2; fi
           python3 scripts/inspect_macos_signature.py --binary "$work/package/midnight-node-toolkit" --output "$out/evidence/macos-signature.json"
           bash scripts/probe_phase4_toolkit.sh "$work/package/midnight-node-toolkit" "$work/probes"

@@ -85,7 +85,7 @@
       "manifestGitBlobSha": "3460851f619d7fd52f742d75e2940a873b1a4bd7",
       "defaultFeatures": [],
       "forbiddenFeatures": ["erase-proof"],
-      "buildCommand": "cargo auditable build --locked --release --no-default-features -p midnight-node-toolkit",
+      "buildCommand": "cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid",
       "macosDeploymentTarget": "13.0"
     }
   },

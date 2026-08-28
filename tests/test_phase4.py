@@ -226,6 +226,15 @@ class Phase4PayloadTest(unittest.TestCase):
                 self.assertIn(template.format(os="macos", arch="arm64"), combined)
                 self.assertIn(template.format(os="linux", arch="arm64"), combined)
 
+    def test_native_build_attempt_selector_is_not_exported_to_cargo(self) -> None:
+        workflow = (ROOT / ".github/workflows/phase4-payloads.yml").read_text()
+        self.assertNotIn("BUILD_ID:", workflow)
+        self.assertIn("build_id='${{ matrix.build_id }}'", workflow)
+        self.assertIn('case "$build_id" in 1|2)', workflow)
+        command = "cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid"
+        self.assertEqual(workflow.count(command), 2)
+        self.assertIn("grep -Fq 'cmd LC_UUID'", workflow)
+
     def test_source_pins_and_transformation_script_digests_are_closed(self) -> None:
         pins = json.loads((ROOT / "evidence/phase4/source-pins.json").read_text())
         self.assertEqual(pins["node"]["commitSha"], "651e043b61ed445bf7a5066c60c87ea7bd606073")
@@ -233,7 +242,10 @@ class Phase4PayloadTest(unittest.TestCase):
         self.assertEqual(pins["node"]["rustToolchain"]["resolved"], "1.95.0")
         self.assertEqual(pins["node"]["toolkitSource"]["defaultFeatures"], [])
         self.assertEqual(pins["node"]["toolkitSource"]["forbiddenFeatures"], ["erase-proof"])
-        self.assertIn("--no-default-features", pins["node"]["toolkitSource"]["buildCommand"])
+        self.assertEqual(
+            pins["node"]["toolkitSource"]["buildCommand"],
+            "cargo auditable rustc --locked --release --no-default-features -p midnight-node-toolkit -- -C link-arg=-Wl,-no_uuid",
+        )
         self.assertEqual(pins["celestiaApp"]["license"]["spdx"], "Apache-2.0")
         self.assertEqual(pins["celestiaNode"]["license"]["spdx"], "Apache-2.0")
         toolchain = json.loads((ROOT / "evidence/phase4/transformation-toolchain.json").read_text())
