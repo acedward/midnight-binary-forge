@@ -12,6 +12,7 @@ on:
       - scripts/compare_phase5_indexer_builds.py
       - scripts/phase5_indexer_contract.py
       - scripts/phase5_indexer_evidence.py
+      - scripts/redact_phase5_build_log.py
       - tests/test_phase5_indexer.py
   push:
     branches: [main]
@@ -24,6 +25,7 @@ on:
       - scripts/compare_phase5_indexer_builds.py
       - scripts/phase5_indexer_contract.py
       - scripts/phase5_indexer_evidence.py
+      - scripts/redact_phase5_build_log.py
       - tests/test_phase5_indexer.py
 
 permissions:

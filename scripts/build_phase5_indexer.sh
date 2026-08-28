@@ -31,16 +31,17 @@ readonly INNER="${ARCHIVE%.zip}"
 readonly WORK="${RUNNER_TEMP}/phase5-indexer-${TARGET_ID}-build${PHASE5_ATTEMPT}"
 readonly SOURCE="${WORK}/source"
 readonly STAGE="${GITHUB_WORKSPACE}/stage/${TARGET_ID}-build${PHASE5_ATTEMPT}"
+readonly RAW_LOG="${WORK}/build.raw.log"
 readonly LOG="${WORK}/build.log"
 readonly CARGO_HOME_PATH="${RUNNER_TEMP}/phase5-cargo-home-${TARGET_ID}-build${PHASE5_ATTEMPT}"
 readonly PINS="${GITHUB_WORKSPACE}/evidence/phase5/indexer-pins.json"
 readonly COMPONENT="${GITHUB_WORKSPACE}/catalog/components/indexer-standalone-${TARGET_ID}-${VERSION}.json"
 readonly BUILD_CONTRACT="${WORK}/actual-build-contract.json"
+readonly TOOL_IDENTITIES="${WORK}/tool-identities.json"
 readonly PATH_COUPLING_EVIDENCE="${WORK}/path-coupling-evidence.json"
 
 rm -rf "$WORK" "$CARGO_HOME_PATH"
-mkdir -p "$WORK" "$CARGO_HOME_PATH" "$STAGE/payload" "$STAGE/evidence-input" "$WORK/package/$INNER"
-export CARGO_HOME="$CARGO_HOME_PATH"
+mkdir -p "$WORK" "$CARGO_HOME_PATH" "$STAGE/payload" "$WORK/package/$INNER"
 
 python3 scripts/check_runner_capability.py \
   --runner-label "$PHASE5_RUNNER_LABEL" \
@@ -60,6 +61,12 @@ PY
 rustc -Vv | tee "$WORK/rustc-Vv.txt"
 test "$(rustc --version | awk '{print $2}')" = 1.95.0
 cargo --version | tee "$WORK/cargo-version.txt"
+
+python3 scripts/phase5_indexer_contract.py capture-tools \
+  --pins "$PINS" --component "$COMPONENT" \
+  --os "$PHASE5_OS" --arch "$PHASE5_ARCH" \
+  --runner-label "$PHASE5_RUNNER_LABEL" --runner-home "$HOME" \
+  --path "$PATH" --output "$TOOL_IDENTITIES"
 
 git init "$SOURCE"
 git -C "$SOURCE" remote add origin https://github.com/midnightntwrk/midnight-indexer.git
@@ -84,25 +91,20 @@ python3 scripts/phase5_indexer_contract.py materialize \
   --pins "$PINS" --component "$COMPONENT" \
   --os "$PHASE5_OS" --arch "$PHASE5_ARCH" --attempt "$PHASE5_ATTEMPT" \
   --runner-temp "$RUNNER_TEMP" --runner-home "$HOME" \
-  --source "$SOURCE" --output "$BUILD_CONTRACT"
-contract_env() {
-  python3 - "$BUILD_CONTRACT" "$1" <<'PY'
-import json, pathlib, sys
-print(json.loads(pathlib.Path(sys.argv[1]).read_text())["environment"][sys.argv[2]])
-PY
-}
-export SOURCE_DATE_EPOCH="$(contract_env SOURCE_DATE_EPOCH)"
-export MIDNIGHT_INDEXER_GIT_SHA="$(contract_env MIDNIGHT_INDEXER_GIT_SHA)"
-export MIDNIGHT_INDEXER_BUILD_DATE="$(contract_env MIDNIGHT_INDEXER_BUILD_DATE)"
-export CARGO_INCREMENTAL="$(contract_env CARGO_INCREMENTAL)"
-export LC_ALL="$(contract_env LC_ALL)"
-export TZ="$(contract_env TZ)"
-export RUSTFLAGS="$(contract_env RUSTFLAGS)"
-test "$(contract_env CARGO_HOME)" = "$CARGO_HOME"
+  --source "$SOURCE" --path "$PATH" --tool-identities "$TOOL_IDENTITIES" \
+  --output "$BUILD_CONTRACT"
 
 python3 scripts/phase5_indexer_contract.py run \
   --pins "$PINS" --component "$COMPONENT" --actual "$BUILD_CONTRACT" \
-  2>&1 | tee "$LOG"
+  --tool-identities "$TOOL_IDENTITIES" \
+  2>&1 | tee "$RAW_LOG"
+python3 scripts/redact_phase5_build_log.py \
+  --input "$RAW_LOG" --output "$LOG" \
+  --replace "$SOURCE=/usr/src/midnight-indexer" \
+  --replace "$CARGO_HOME_PATH=/usr/src/cargo-home" \
+  --replace "$GITHUB_WORKSPACE=/usr/src/forge-workspace" \
+  --replace "$RUNNER_TEMP=/usr/src/runner-temp" \
+  --replace "$HOME=/usr/src/runner-home"
 
 readonly BINARY="${SOURCE}/target/release/indexer-standalone"
 test -f "$BINARY"
@@ -309,7 +311,7 @@ python3 scripts/phase5_indexer_contract.py scan-binary \
   --forbid-prefix "$HOME" \
   --forbid-prefix "$RUNNER_TEMP" \
   --forbid-prefix "$GITHUB_WORKSPACE" \
-  --forbid-prefix "$CARGO_HOME" \
+  --forbid-prefix "$CARGO_HOME_PATH" \
   --forbid-prefix "phase5-cargo-home-${TARGET_ID}-build${PHASE5_ATTEMPT}" \
   --forbid-prefix "phase5-indexer-${TARGET_ID}-build${PHASE5_ATTEMPT}" \
   --forbid-prefix /home/runner \
@@ -340,10 +342,9 @@ python3 scripts/validate_archive.py \
   --policy "$WORK/archive-policy.json" \
   --scratch-parent "$WORK"
 
-(
-  cd "$SOURCE"
-  cargo metadata --locked --format-version 1 > "$WORK/cargo-metadata.json"
-)
+python3 scripts/phase5_indexer_contract.py metadata \
+  --pins "$PINS" --component "$COMPONENT" --actual "$BUILD_CONTRACT" \
+  --tool-identities "$TOOL_IDENTITIES" --output "$WORK/cargo-metadata.json"
 cp "$SOURCE/Cargo.lock" "$WORK/Cargo.lock"
 evidence_args=(
   --metadata "$WORK/cargo-metadata.json" \
@@ -356,6 +357,7 @@ evidence_args=(
   --pins "$PINS" \
   --component "$COMPONENT" \
   --actual-build-contract "$BUILD_CONTRACT" \
+  --tool-identities "$TOOL_IDENTITIES" \
   --path-coupling-evidence "$PATH_COUPLING_EVIDENCE" \
   --license "$SOURCE/LICENSE" \
   --output "$STAGE/evidence" \
@@ -371,10 +373,28 @@ fi
 python3 scripts/phase5_indexer_evidence.py "${evidence_args[@]}"
 
 python3 - "$STAGE" <<'PY'
+import hashlib, pathlib, stat, sys
+root = pathlib.Path(sys.argv[1])
+rows = []
+for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
+    mode = path.lstat().st_mode
+    if stat.S_ISLNK(mode) or not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)):
+        raise SystemExit(f"unsafe native artifact entry: {path}")
+    if stat.S_ISREG(mode):
+        relative = path.relative_to(root).as_posix()
+        if relative == "SHA256SUMS":
+            raise SystemExit("unexpected pre-existing native SHA256SUMS")
+        value = hashlib.sha256(path.read_bytes()).hexdigest()
+        rows.append(f"{value}  {relative}")
+(root / "SHA256SUMS").write_text("\n".join(rows) + "\n", encoding="utf-8")
+PY
+
+python3 - "$STAGE" <<'PY'
 import pathlib, sys
 root = pathlib.Path(sys.argv[1])
 assert len(list((root / "payload").iterdir())) == 1
 assert (root / "result.json").is_file()
+assert (root / "SHA256SUMS").is_file()
 assert not any(path.name in {"target", "source", ".cargo"} for path in root.rglob("*"))
 PY
 

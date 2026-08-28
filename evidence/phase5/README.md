@@ -13,12 +13,26 @@ registry and git paths and the source checkout are remapped by the pinned
 workspace, or Cargo home prefix anywhere in each executable. The exact native
 runner, commands, environment, `RUSTFLAGS`, final-product linker flags, and
 embedded build values are cross-bound in the component manifest, pin file,
-emitted source manifest, and SLSA parameters. The first job additionally
+emitted source manifest, and SLSA parameters. Cargo executes under a closed
+allowlist environment: reviewed Rust/Cargo/compiler/linker overrides are
+rejected, SDK/search/temp overrides are explicitly cleared, and every other
+ambient name is dropped. The exact effective environment and absolute
+Rust/Cargo/compiler/linker/SDK identities, versions, executable digests, and
+SDK settings manifest are retained in the actual contract, source manifest,
+and SLSA parameters. `HOME`, `CARGO_HOME`, and `TMPDIR` are fresh per attempt;
+the exact toolchain Cargo binary is invoked directly and its toolchain bin
+directory leads the recorded effective `PATH`. The first job additionally
 exercises the upstream
 `concurrent_write_transactions_never_hit_busy_errors` regression, SQLite WAL
 with an eight-connection pool, concurrent GraphQL requests, process liveness,
 termination, and restart. Its concurrency and restart logs are separate,
 retained, scanned before evidence generation, and bound by size and SHA-256.
+Every attempt also retains its redacted raw `build.log` alongside the log
+record, result evidence list, and a one-to-one native `SHA256SUMS`. The
+aggregate gate rejects missing, extra, dangling, substituted, unsafe, or
+non-ZIP inputs and validates result/evidence/source/provenance/actual-contract/
+tool-identity/build-log/SBOM relations plus the one-member `0755` archive and
+its exact inner executable before creating its own one-to-one root checksum.
 macOS jobs inspect the linker-produced signature but never invoke `codesign` in
 signing mode. SBOM evidence is SPDX 2.3 and CycloneDX 1.6 JSON.
 

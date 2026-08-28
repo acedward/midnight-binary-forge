@@ -156,6 +156,7 @@ def main() -> int:
     parser.add_argument("--pins", required=True, type=Path)
     parser.add_argument("--component", required=True, type=Path)
     parser.add_argument("--actual-build-contract", required=True, type=Path)
+    parser.add_argument("--tool-identities", required=True, type=Path)
     parser.add_argument("--path-coupling-evidence", required=True, type=Path)
     parser.add_argument("--runtime-log-evidence", type=Path)
     parser.add_argument("--runtime-first-log", type=Path)
@@ -171,13 +172,14 @@ def main() -> int:
     pins = phase5_indexer_contract.load_json(args.pins)
     component = phase5_indexer_contract.load_json(args.component)
     actual_contract = phase5_indexer_contract.load_json(args.actual_build_contract)
-    phase5_indexer_contract.validate_actual_contract(actual_contract, pins, component)
+    phase5_indexer_contract.validate_actual_contract(actual_contract, pins, component, args.tool_identities)
     if actual_contract["target"]["os"] != args.os or actual_contract["target"]["arch"] != args.arch or actual_contract["attempt"] != args.attempt:
         raise SystemExit("actual build contract target/attempt differs from evidence invocation")
     target_contract = phase5_indexer_contract.contract_for_target(pins, args.os, args.arch)
     pins_sha, pins_size = digest(args.pins)
     component_sha, component_size = digest(args.component)
     actual_contract_sha, actual_contract_size = digest(args.actual_build_contract)
+    tool_identities_sha, tool_identities_size = digest(args.tool_identities)
     target_contract_sha = canonical_json_sha256(target_contract)
     spdx_path, cdx_path = generate_sboms(metadata, args.os, args.arch, args.output)
 
@@ -226,6 +228,11 @@ def main() -> int:
             "targetContractSha256": target_contract_sha,
             "resolvedContract": actual_contract,
             "resolvedContractManifest": {"name": args.actual_build_contract.name, "size": actual_contract_size, "sha256": actual_contract_sha},
+            "effectiveEnvironment": actual_contract["effectiveEnvironment"],
+            "environmentPolicy": actual_contract["environmentPolicy"],
+            "toolIdentityPolicy": actual_contract["toolIdentityPolicy"],
+            "toolIdentities": actual_contract["toolIdentities"],
+            "toolIdentityEvidenceManifest": {"name": args.tool_identities.name, "size": tool_identities_size, "sha256": tool_identities_sha},
         },
         "target": actual_contract["target"],
         "payload": {"binary": {"name": args.binary.name, "size": binary_size, "sha256": binary_sha}, "archive": {"name": args.archive.name, "size": archive_size, "sha256": archive_sha}},
@@ -255,6 +262,11 @@ def main() -> int:
                     "runnerImageVersion": os.environ.get("ImageVersion", "unknown"),
                     "resolvedBuildContract": actual_contract,
                     "resolvedBuildContractManifest": {"name": args.actual_build_contract.name, "sha256": actual_contract_sha},
+                    "effectiveEnvironment": actual_contract["effectiveEnvironment"],
+                    "environmentPolicy": actual_contract["environmentPolicy"],
+                    "toolIdentityPolicy": actual_contract["toolIdentityPolicy"],
+                    "toolIdentities": actual_contract["toolIdentities"],
+                    "toolIdentityEvidenceManifest": {"name": args.tool_identities.name, "sha256": tool_identities_sha},
                 },
                 "resolvedDependencies": [
                     {"uri": "git+https://github.com/midnightntwrk/midnight-indexer", "digest": {"gitCommit": SOURCE_COMMIT, "gitTree": SOURCE_TREE}},
@@ -273,7 +285,16 @@ def main() -> int:
     provenance_path = args.output / "provenance-indexer-standalone.slsa.json"
     write_json(provenance_path, provenance)
 
-    build_log_record = {"schemaVersion": "phase5-indexer-build-log-v1", "name": args.build_log.name, "size": log_size, "sha256": log_sha, "redaction": "No credentials or fixture secret values are written by the build harness."}
+    retained_build_log = args.output / args.build_log.name
+    retained_build_log.write_bytes(args.build_log.read_bytes())
+    build_log_record = {
+        "schemaVersion": "phase5-indexer-build-log-v2",
+        "name": args.build_log.name,
+        "size": log_size,
+        "sha256": log_sha,
+        "retained": True,
+        "redaction": "Local source/Cargo/runner/workspace/home paths are replaced by stable /usr/src labels; credential-shaped values fail the build before retention.",
+    }
     build_log_record_path = args.output / "build-log-indexer-standalone.json"
     write_json(build_log_record_path, build_log_record)
     (args.output / "LICENSE-Apache-2.0.txt").write_bytes(args.license.read_bytes())
@@ -310,6 +331,7 @@ def main() -> int:
         args.signing_evidence,
         args.path_coupling_evidence,
         args.actual_build_contract,
+        args.tool_identities,
     ):
         (args.output / path.name).write_bytes(path.read_bytes())
 
@@ -318,7 +340,7 @@ def main() -> int:
         value, size = digest(path)
         evidence.append({"name": path.name, "size": size, "sha256": value})
     result = {
-        "schemaVersion": "phase5-indexer-build-result-v1",
+        "schemaVersion": "phase5-indexer-build-result-v2",
         "target": {"os": args.os, "arch": args.arch},
         "attempt": args.attempt,
         "sourceCommit": SOURCE_COMMIT,
@@ -329,6 +351,8 @@ def main() -> int:
             "pinsManifestSha256": pins_sha,
             "componentManifestSha256": component_sha,
             "targetContractSha256": target_contract_sha,
+            "resolvedContractSha256": actual_contract_sha,
+            "toolIdentitiesSha256": tool_identities_sha,
         },
         "evidence": evidence,
     }
