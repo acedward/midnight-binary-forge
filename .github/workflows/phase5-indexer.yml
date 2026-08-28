@@ -2,6 +2,23 @@ name: Phase 5 native indexer candidate
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/phase5-indexer.yml
+      - catalog/components/indexer-standalone-*.json
+      - evidence/phase5/**
+      - scripts/build_phase5_indexer.sh
+      - scripts/compare_phase5_indexer_builds.py
+      - scripts/phase5_indexer_evidence.py
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/phase5-indexer.yml
+      - catalog/components/indexer-standalone-*.json
+      - evidence/phase5/**
+      - scripts/build_phase5_indexer.sh
+      - scripts/compare_phase5_indexer_builds.py
+      - scripts/phase5_indexer_evidence.py
 
 permissions:
   contents: read
