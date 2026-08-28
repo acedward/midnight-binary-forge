@@ -10,11 +10,12 @@
  */
 
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
+
+import { loadExactPackageMetadata } from "./node_package_identity.mjs";
 
 const PUBLIC_RNG_SEED = Buffer.from("midnight-binary-forge/phase3p/stock-aa-k19/v1", "utf8");
 const EXPECTED_EXECUTE_BZKIR_SHA256 = "ab697f15c424d5c5d47c3dbfe114521611bcd28e3c9655d84d388b5f0f16a06b";
@@ -35,6 +36,16 @@ const EXPECTED_PACKAGE_VERSIONS = Object.freeze({
   "@midnight-ntwrk/midnight-js-protocol": "5.0.0-beta.6",
   "@midnightntwrk/ledger-v9": "1.0.0-rc.3",
   "@noble/curves": "2.2.0",
+});
+const EXPORTED_PACKAGE_ENTRYPOINTS = Object.freeze({
+  "@midnight-ntwrk/compact-runtime": "@midnight-ntwrk/compact-runtime",
+  "@midnight-ntwrk/midnight-js-contracts": "@midnight-ntwrk/midnight-js-contracts",
+  "@midnight-ntwrk/midnight-js-http-client-proof-provider": "@midnight-ntwrk/midnight-js-http-client-proof-provider",
+  "@midnight-ntwrk/midnight-js-network-id": "@midnight-ntwrk/midnight-js-network-id",
+  "@midnight-ntwrk/midnight-js-node-zk-config-provider": "@midnight-ntwrk/midnight-js-node-zk-config-provider",
+  "@midnight-ntwrk/midnight-js-protocol": "@midnight-ntwrk/midnight-js-protocol/compact-js",
+  "@midnightntwrk/ledger-v9": "@midnightntwrk/ledger-v9",
+  "@noble/curves": "@noble/curves/secp256k1.js",
 });
 
 function fail(message) {
@@ -118,16 +129,17 @@ async function sha256File(path) {
 }
 
 async function loadPinnedModules(dependencyRoot) {
-  const requireFromDependencyRoot = createRequire(join(resolve(dependencyRoot), "package.json"));
   const packageInfo = new Map();
   const observed = {};
   for (const [packageName, expected] of Object.entries(EXPECTED_PACKAGE_VERSIONS)) {
-    const packageJsonPath = requireFromDependencyRoot.resolve(`${packageName}/package.json`);
-    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
-    packageInfo.set(packageName, { packageJson, root: dirname(packageJsonPath) });
-    const actual = packageJson.version;
-    if (actual !== expected) fail(`${packageName} version drift: expected ${expected}, got ${actual}`);
-    observed[packageName] = actual;
+    const info = await loadExactPackageMetadata({
+      dependencyRoot,
+      packageName,
+      exportedSpecifier: EXPORTED_PACKAGE_ENTRYPOINTS[packageName],
+      expectedVersion: expected,
+    });
+    packageInfo.set(packageName, info);
+    observed[packageName] = info.packageJson.version;
   }
   const protocolPackage = packageInfo.get("@midnight-ntwrk/midnight-js-protocol")?.packageJson;
   if (protocolPackage?.dependencies?.["@midnight-ntwrk/compact-js"] !== "2.5.5-rc.7") {

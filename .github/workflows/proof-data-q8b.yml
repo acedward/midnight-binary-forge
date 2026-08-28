@@ -13,7 +13,10 @@ on:
       - 'scripts/proof_runtime_docker.py'
       - 'scripts/stock_aa_k19_proof.mjs'
       - 'scripts/stock_aa_k19_runtime.py'
+      - 'scripts/node_package_identity.mjs'
+      - 'scripts/test_node_package_identity.mjs'
       - 'scripts/validate_stock_aa_manifest.py'
+      - 'tests/fixtures/node-package-identity/**'
       - 'scripts/validate_compact_direct.py'
       - 'tests/test_proof_data.py'
   push:
@@ -30,7 +33,10 @@ on:
       - 'scripts/proof_runtime_docker.py'
       - 'scripts/stock_aa_k19_proof.mjs'
       - 'scripts/stock_aa_k19_runtime.py'
+      - 'scripts/node_package_identity.mjs'
+      - 'scripts/test_node_package_identity.mjs'
       - 'scripts/validate_stock_aa_manifest.py'
+      - 'tests/fixtures/node-package-identity/**'
       - 'scripts/validate_compact_direct.py'
       - 'tests/test_proof_data.py'
   workflow_dispatch:
@@ -224,6 +230,7 @@ jobs:
           pnpm install --frozen-lockfile
           test "$(node --version)" = v22.23.2
           test "$(pnpm --version)" = 11.24.0
+          node "$GITHUB_WORKSPACE/scripts/test_node_package_identity.mjs"
       - name: Generate the stock K19 artifacts from the fixed combined generation offline
         env:
           RUNNER_TEMP_ROOT: ${{ runner.temp }}
