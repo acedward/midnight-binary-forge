@@ -186,8 +186,8 @@ jobs:
           test "$missing_status" -ne 0
           test "$missing_status" -ne 124
           grep -Eiq 'res|chain|spec|No such file' "$work/missing-res.stderr"
-          "$work/run1/tree/$executable_name" --version >"$work/version.txt"
-          "$work/run1/tree/$executable_name" --help >"$work/help.txt"
+          (cd "$work/run1/tree" && "./$executable_name" --version) >"$work/version.txt"
+          (cd "$work/run1/tree" && "./$executable_name" --help) >"$work/help.txt"
           {
             uname -a
             cat /etc/os-release
