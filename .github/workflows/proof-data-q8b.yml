@@ -1,0 +1,156 @@
+name: Q8B proof-data and offline cache gate
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/proof-data-q8b.yml'
+      - 'catalog/components/midnight-srs-*.json'
+      - 'catalog/components/midnight-ledger-static-9.0.0.json'
+      - 'catalog/proof-data/**'
+      - 'scripts/generate_proof_catalog.py'
+      - 'scripts/proof_cache_bootstrap.py'
+      - 'scripts/proof_data_pipeline.py'
+      - 'scripts/proof_runtime_docker.py'
+      - 'scripts/validate_compact_direct.py'
+      - 'tests/test_proof_data.py'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/proof-data-q8b.yml'
+      - 'catalog/components/midnight-srs-*.json'
+      - 'catalog/components/midnight-ledger-static-9.0.0.json'
+      - 'catalog/proof-data/**'
+      - 'scripts/generate_proof_catalog.py'
+      - 'scripts/proof_cache_bootstrap.py'
+      - 'scripts/proof_data_pipeline.py'
+      - 'scripts/proof_runtime_docker.py'
+      - 'scripts/validate_compact_direct.py'
+      - 'tests/test_proof_data.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proof-data-q8b-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acquire-reproduce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact source without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Prove runner capacity and frozen noarch contract
+        run: |
+          python3 scripts/check_runner_capability.py --runner-label ubuntu-24.04 --expected-os linux --expected-arch amd64 --require-tool docker --min-free-gib 6
+          python3 -m pip install --requirement requirements-ci.txt
+          python3 scripts/generate_proof_catalog.py check
+          python3 scripts/proof_data_pipeline.py validate-manifest
+          python3 scripts/validate_catalog.py all --root .
+          python3 -m unittest -v tests.test_proof_data
+      - name: Independently acquire and package Q8B twice
+        env:
+          RUNNER_TEMP_ROOT: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          out_a="$RUNNER_TEMP_ROOT/q8b-output-a"
+          out_b="$RUNNER_TEMP_ROOT/q8b-output-b"
+          work_a="$RUNNER_TEMP_ROOT/q8b-work-a"
+          work_b="$RUNNER_TEMP_ROOT/q8b-work-b"
+          mkdir -m 700 "$out_a" "$out_b" "$work_a" "$work_b"
+          python3 scripts/proof_data_pipeline.py acquire --output-root "$out_a" --work-root "$work_a"
+          python3 scripts/proof_data_pipeline.py verify-output --output-root "$out_a"
+          python3 scripts/proof_data_pipeline.py acquire --output-root "$out_b" --work-root "$work_b"
+          python3 scripts/proof_data_pipeline.py verify-output --output-root "$out_b"
+          python3 - "$out_a" "$out_b" <<'PY'
+          import hashlib, json, pathlib, sys
+          roots = [pathlib.Path(value) for value in sys.argv[1:]]
+          inventories = []
+          for root in roots:
+              inventory = []
+              for path in sorted((root / "payloads").iterdir(), key=lambda value: value.name):
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  inventory.append((path.name, path.stat().st_size, digest))
+              inventories.append(inventory)
+          if inventories[0] != inventories[1] or len(inventories[0]) != 21:
+              raise SystemExit("two independent Q8B acquisitions/packages disagree")
+          print(json.dumps(inventories[0], separators=(",", ":")))
+          PY
+          test "$(find "$out_a/payloads" -maxdepth 1 -type f | wc -l)" -eq 21
+          test "$(find "$out_a/payloads" -maxdepth 1 -type f \( -name '*linux*' -o -name '*macos*' -o -name '*amd64*' -o -name '*arm64*' \) | wc -l)" -eq 0
+          test "$(find "$out_a/payloads" -maxdepth 1 -type f -name 'bls_midnight_2p*' | wc -l)" -eq 20
+      - name: Retain exact inert Phase-6 proof-data input
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: proof-data-q8b-${{ github.sha }}
+          path: ${{ runner.temp }}/q8b-output-a
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  runtime-native:
+    needs: acquire-reproduce
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            os: linux
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            os: linux
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 50
+    steps:
+      - name: Check out exact source without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Download exact inert Q8B acquisition
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: proof-data-q8b-${{ github.sha }}
+          path: ${{ runner.temp }}/q8b-candidate
+      - name: Prove native runner and candidate identity
+        run: |
+          python3 scripts/check_runner_capability.py --runner-label '${{ matrix.runner }}' --expected-os '${{ matrix.os }}' --expected-arch '${{ matrix.arch }}' --require-tool docker --min-free-gib 5
+          python3 scripts/proof_data_pipeline.py verify-output --output-root '${{ runner.temp }}/q8b-candidate'
+      - name: Exercise real named-volume atomicity and exact proof-server consumers offline
+        env:
+          RUN_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          mkdir -m 700 '${{ runner.temp }}/q8b-runtime-work'
+          python3 scripts/proof_runtime_docker.py \
+            --candidate-root '${{ runner.temp }}/q8b-candidate' \
+            --work-root '${{ runner.temp }}/q8b-runtime-work' \
+            --os '${{ matrix.os }}' \
+            --arch '${{ matrix.arch }}' \
+            --run-key "$RUN_KEY" \
+            --output '${{ runner.temp }}/q8b-runtime-result-${{ matrix.arch }}.json'
+      - name: Compile Compact 0.34 ZKIR v2 and v3 from the same fixed cache generation
+        run: |
+          set -euo pipefail
+          python3 scripts/validate_compact_direct.py native \
+            --os '${{ matrix.os }}' \
+            --arch '${{ matrix.arch }}' \
+            --work-dir '${{ runner.temp }}/compact-q8b-${{ matrix.arch }}' \
+            --fixture tests/fixtures/compact/tiny.compact \
+            --proof-cache-dir '${{ runner.temp }}/q8b-runtime-work/cache/generation' \
+            > '${{ runner.temp }}/compact-q8b-result-${{ matrix.arch }}.json'
+      - name: Retain non-secret native runtime evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: proof-runtime-q8b-${{ matrix.arch }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/q8b-runtime-result-${{ matrix.arch }}.json
+            ${{ runner.temp }}/compact-q8b-result-${{ matrix.arch }}.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9

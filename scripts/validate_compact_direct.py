@@ -218,7 +218,7 @@ def validate_runner_identity(os_name: str, arch: str) -> None:
     expect(observed_arch == arch, f"native architecture mismatch: expected {arch}, observed {platform.machine()}")
 
 
-def validate_native(manifest: dict[str, Any], os_name: str, arch: str, work_dir: Path, fixture_path: Path) -> dict[str, Any]:
+def validate_native(manifest: dict[str, Any], os_name: str, arch: str, work_dir: Path, fixture_path: Path, proof_cache_dir: Path | None = None) -> dict[str, Any]:
     validate_runner_identity(os_name, arch)
     validate_live_release(manifest)
     matches = [row for row in manifest["upstream"]["assets"] if row["os"] == os_name and row["arch"] == arch]
@@ -304,11 +304,15 @@ def validate_native(manifest: dict[str, Any], os_name: str, arch: str, work_dir:
         expect(fixture[f"expected{version.upper()}Mock"] in mock, f"{version} derived K mismatch: {mock}")
         outputs[version] = zkir_path
 
-    cache = work_dir / "proof-cache"
-    cache.mkdir(mode=0o700)
+    cache = proof_cache_dir.resolve() if proof_cache_dir is not None else work_dir / "proof-cache"
+    if proof_cache_dir is None:
+        cache.mkdir(mode=0o700)
+    else:
+        expect(cache.is_dir() and not cache.is_symlink(), "selected proof cache is not a real directory")
     srs_path = cache / fixture["srsName"]
-    srs_path.write_bytes(request_bytes(manifest["proofCacheContract"]["defaultSourceUrl"] + fixture["srsName"]))
-    srs_path.chmod(0o644)
+    if proof_cache_dir is None:
+        srs_path.write_bytes(request_bytes(manifest["proofCacheContract"]["defaultSourceUrl"] + fixture["srsName"]))
+        srs_path.chmod(0o644)
     expect(srs_path.stat().st_size == fixture["srsSize"] and sha256_file(srs_path) == fixture["srsSha256"], "native K13 cache input mismatch")
     proof_env = compile_env.copy()
     proof_env["MIDNIGHT_PP"] = str(cache)
@@ -328,7 +332,7 @@ def validate_native(manifest: dict[str, Any], os_name: str, arch: str, work_dir:
         "members": sorted(expected_members),
         "file": file_rows,
         "versions": observed_versions,
-        "proofCache": {"environment": "MIDNIGHT_PP", "k": fixture["k"], "name": fixture["srsName"], "sha256": fixture["srsSha256"], "backendKeyDigests": key_digests},
+        "proofCache": {"environment": "MIDNIGHT_PP", "source": "preseeded-generation" if proof_cache_dir is not None else "official-single-object", "k": fixture["k"], "name": fixture["srsName"], "sha256": fixture["srsSha256"], "backendKeyDigests": key_digests},
         "warehouseOutputCount": 0,
     }
 
@@ -353,6 +357,7 @@ def main() -> int:
     native.add_argument("--arch", required=True, choices=["amd64", "arm64"])
     native.add_argument("--work-dir", required=True, type=Path)
     native.add_argument("--fixture", required=True, type=Path)
+    native.add_argument("--proof-cache-dir", type=Path)
     args = parser.parse_args()
     try:
         manifest = load_manifest(args.manifest)
@@ -364,7 +369,7 @@ def main() -> int:
             validate_runtime_gate(manifest, args.runtime, args.ledger_major)
             result = {"runtime": args.runtime, "ledgerMajor": args.ledger_major, "coordinatedMigration": True}
         else:
-            result = validate_native(manifest, args.os, args.arch, args.work_dir, args.fixture)
+            result = validate_native(manifest, args.os, args.arch, args.work_dir, args.fixture, args.proof_cache_dir)
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
         return 0
     except (ValidationError, OSError, json.JSONDecodeError, KeyError, subprocess.SubprocessError, zipfile.BadZipFile) as exc:
