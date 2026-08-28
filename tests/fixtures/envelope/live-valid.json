@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "promotion-live-evidence-v1",
+  "capturedAt": "2026-08-27T01:00:00Z",
+  "repository": { "fullName": "acedward/midnight-binary-forge", "id": 1349127482, "nodeId": "R_kgDOUGoNOg" },
+  "protectedRef": { "ref": "refs/heads/main", "commitSha": "2222222222222222222222222222222222222222", "protected": true },
+  "workflowFile": { "path": ".github/workflows/candidate.yml", "commitSha": "2222222222222222222222222222222222222222", "blobSha": "1111111111111111111111111111111111111111" },
+  "run": {
+    "id": 100,
+    "attempt": 1,
+    "repository": "acedward/midnight-binary-forge",
+    "workflowPath": ".github/workflows/candidate.yml",
+    "event": "workflow_dispatch",
+    "headSha": "2222222222222222222222222222222222222222",
+    "headRef": "main",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "stagingArtifact": {
+    "id": 200,
+    "runId": 100,
+    "runAttempt": 1,
+    "name": "verified-content-fixture-1-867a717069e45971055455dc73d9945eb50b69393639a3940052cd653c209df1",
+    "archiveSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "expired": false,
+    "expiresAt": "2026-09-03T00:00:00Z"
+  },
+  "release": {
+    "id": 300,
+    "nodeId": "RE_fixture_node",
+    "repository": "acedward/midnight-binary-forge",
+    "tag": "forge-2026.08.27.1",
+    "targetCommitish": "2222222222222222222222222222222222222222",
+    "url": "https://github.com/acedward/midnight-binary-forge/releases/tag/forge-2026.08.27.1",
+    "draft": false,
+    "prerelease": false,
+    "immutable": true
+  },
+  "releaseAssets": [
+    { "name": "LICENSE-Apache-2.0.txt", "size": 11358, "sha256": "6666666666666666666666666666666666666666666666666666666666666666" },
+    { "name": "attestation-fixture-1.sigstore.json", "size": 4096, "sha256": "7777777777777777777777777777777777777777777777777777777777777777" },
+    { "name": "fixture-linux-amd64-v1.0.0.zip", "size": 2048, "sha256": "8888888888888888888888888888888888888888888888888888888888888888" },
+    { "name": "promotion-envelope-fixture-1.json", "size": 8192, "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+    { "name": "provenance-fixture-1.json", "size": 1024, "sha256": "9999999999999999999999999999999999999999999999999999999999999999" },
+    { "name": "sbom-fixture-1.spdx.json", "size": 1024, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    { "name": "sha256sums-fixture-1.txt", "size": 512, "sha256": "5555555555555555555555555555555555555555555555555555555555555555" },
+    { "name": "source-manifest-fixture-1.json", "size": 1024, "sha256": "4444444444444444444444444444444444444444444444444444444444444444" }
+  ]
+}

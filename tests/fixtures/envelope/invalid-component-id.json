@@ -1,0 +1,5 @@
+{
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "valid.json",
+  "set": { "path": "/claims/contentAssets/1/componentId", "value": "../escape" },
+  "expectedError": "invalid payload component ID"
+}

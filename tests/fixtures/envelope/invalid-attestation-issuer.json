@@ -1,0 +1,5 @@
+{
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "valid.json",
+  "set": { "path": "/attestation/issuer", "value": "https://attacker.invalid" },
+  "expectedError": "unexpected attestation issuer"
+}

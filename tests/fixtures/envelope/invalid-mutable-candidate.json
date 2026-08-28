@@ -1,6 +1,6 @@
 {
   "fixtureVersion": "promotion-envelope-invalid-fixture-v1",
   "base": "valid.json",
-  "set": { "path": "/claims/candidate/immutable", "value": false },
-  "expectedError": "candidate is not immutable"
+  "set": { "path": "/claims/candidateDraft/liveImmutableVerificationRequired", "value": false },
+  "expectedError": "candidate must require live immutable verification"
 }

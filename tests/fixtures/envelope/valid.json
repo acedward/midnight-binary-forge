@@ -16,17 +16,20 @@
       "runId": 100,
       "runAttempt": 1,
       "artifactId": 200,
-      "artifactName": "verified-candidate-fixture-1-a152ec681a8999e2aeb23bc8cf6c7086dde9a912a16f2160f93db2822cd0ad9d",
+      "artifactName": "verified-content-fixture-1-867a717069e45971055455dc73d9945eb50b69393639a3940052cd653c209df1",
       "archiveSha256": "3333333333333333333333333333333333333333333333333333333333333333",
       "expiresAt": "2026-09-03T00:00:00Z"
     },
-    "candidate": {
+    "candidateDraft": {
+      "repository": "acedward/midnight-binary-forge",
+      "repositoryId": 1349127482,
+      "repositoryNodeId": "R_kgDOUGoNOg",
       "tag": "forge-2026.08.27.1",
+      "targetCommitish": "2222222222222222222222222222222222222222",
       "releaseId": 300,
       "releaseNodeId": "RE_fixture_node",
       "releaseUrl": "https://github.com/acedward/midnight-binary-forge/releases/tag/forge-2026.08.27.1",
-      "immutable": true,
-      "publishedAt": "2026-08-27T00:00:00Z"
+      "liveImmutableVerificationRequired": true
     },
     "buildSet": {
       "id": "fixture-1",
@@ -35,20 +38,17 @@
       "checksumsName": "sha256sums-fixture-1.txt",
       "checksumsSha256": "5555555555555555555555555555555555555555555555555555555555555555"
     },
-    "assets": [
+    "transport": {
+      "envelopeName": "promotion-envelope-fixture-1.json",
+      "attestationBundleName": "attestation-fixture-1.sigstore.json"
+    },
+    "contentAssets": [
       {
         "name": "LICENSE-Apache-2.0.txt",
         "role": "license",
         "size": 11358,
         "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
         "mediaType": "text/plain"
-      },
-      {
-        "name": "attestation-fixture-1.sigstore.json",
-        "role": "attestation",
-        "size": 4096,
-        "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
-        "mediaType": "application/json"
       },
       {
         "name": "fixture-linux-amd64-v1.0.0.zip",
@@ -88,21 +88,31 @@
         "mediaType": "application/json"
       }
     ],
-    "assetListSha256": "a152ec681a8999e2aeb23bc8cf6c7086dde9a912a16f2160f93db2822cd0ad9d",
+    "contentAssetListSha256": "867a717069e45971055455dc73d9945eb50b69393639a3940052cd653c209df1",
+    "completeAssetNames": [
+      "LICENSE-Apache-2.0.txt",
+      "attestation-fixture-1.sigstore.json",
+      "fixture-linux-amd64-v1.0.0.zip",
+      "promotion-envelope-fixture-1.json",
+      "provenance-fixture-1.json",
+      "sbom-fixture-1.spdx.json",
+      "sha256sums-fixture-1.txt",
+      "source-manifest-fixture-1.json"
+    ],
+    "completeAssetNameListSha256": "bc2bc69a43bb04664756f2c02659c4ad1ad082ac07d2dae9bcd09e7623b06180",
     "payloadCount": 1,
-    "evidenceCount": 6,
-    "totalAssetCount": 7
+    "contentEvidenceCount": 5,
+    "transportAssetCount": 2,
+    "totalAssetCount": 8
   },
-  "claimsDigest": "sha256:298ae7330d3794901de3f4926e2fd02b47efb0767c4e3d13a4296c0d7ec8a482",
-  "signatures": [
-    {
-      "kind": "github-artifact-attestation",
-      "predicateType": "https://github.com/acedward/midnight-binary-forge/predicates/promotion-envelope/v1",
-      "bundleName": "attestation-fixture-1.sigstore.json",
-      "bundleSha256": "7777777777777777777777777777777777777777777777777777777777777777",
-      "subjectDigest": "sha256:298ae7330d3794901de3f4926e2fd02b47efb0767c4e3d13a4296c0d7ec8a482",
-      "issuer": "https://token.actions.githubusercontent.com",
-      "identity": "https://github.com/acedward/midnight-binary-forge/.github/workflows/candidate.yml@refs/heads/main"
-    }
-  ]
+  "claimsDigest": "sha256:b121a2fc23a1210d1fa441a703c1f5127958d11a93c54005d51ea29a48a18660",
+  "attestation": {
+    "kind": "github-artifact-attestation",
+    "predicateType": "https://github.com/acedward/midnight-binary-forge/predicates/promotion-envelope/v1",
+    "bundleName": "attestation-fixture-1.sigstore.json",
+    "bundleSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+    "subjectDigest": "sha256:b121a2fc23a1210d1fa441a703c1f5127958d11a93c54005d51ea29a48a18660",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "identity": "https://github.com/acedward/midnight-binary-forge/.github/workflows/candidate.yml@refs/heads/main"
+  }
 }

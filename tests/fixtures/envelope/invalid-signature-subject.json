@@ -1,6 +1,6 @@
 {
   "fixtureVersion": "promotion-envelope-invalid-fixture-v1",
   "base": "valid.json",
-  "set": { "path": "/signatures/0/subjectDigest", "value": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
-  "expectedError": "signature subject mismatch"
+  "set": { "path": "/attestation/subjectDigest", "value": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
+  "expectedError": "attestation subject mismatch"
 }
