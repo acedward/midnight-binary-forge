@@ -45,6 +45,19 @@ EXACT_VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z
 PHASE0_PINS = load_json(ROOT / "evidence/phase0/source-and-proof-pins.json")
 SRS_INVENTORY = {row["k"]: row for row in PHASE0_PINS["proofData"]["srs"]}
 LEDGER_STATIC_MEMBERS = {row["path"]: row for row in PHASE0_PINS["proofData"]["ledgerStatic"]["members"]}
+WAREHOUSE_SNAPSHOT_PATH = "evidence/phase0/warehouse-release-0.3.120.json"
+WAREHOUSE_SNAPSHOT_SHA256 = "6cb1abbbcf3e693e85b1d6806569caec956d5627b4aeb18ba413b519216124e1"
+WAREHOUSE_REPOSITORY = {
+    "fullName": "effectstream/binaries",
+    "id": 1117580582,
+    "nodeId": "R_kgDOQpztJg",
+}
+WAREHOUSE_RELEASE = {
+    "tagName": "0.3.120",
+    "id": 270761136,
+    "nodeId": "RE_kwDOQpztJs4QI3yw",
+}
+BUILD_INPUT_FIELDS = {"lockedDependencies", "toolchain", "toolchainDigest", "buildFlags"}
 
 
 def schema_validate(value: Any, schema_name: str) -> None:
@@ -82,10 +95,73 @@ def exact_consumer_policy(compatibility: dict[str, Any], ledger_component: bool)
         seen.add(key)
 
 
+def exact_source_object(source: dict[str, Any]) -> dict[str, Any]:
+    inputs = [source[key] for key in ("asset", "object") if key in source]
+    expect(len(inputs) == 1, "operation requires exactly one immutable asset/object identity")
+    identity = inputs[0]
+    expect(set(("id", "name", "url", "size", "sha256")) <= set(identity), "immutable asset/object identity requires ID/name/URL/size/SHA-256")
+    expect(identity["url"].split("?", 1)[0].split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1] == identity["name"], "asset/object URL and exact upstream name disagree")
+    return identity
+
+
+def validate_operation_contract(component: dict[str, Any]) -> None:
+    operation = component["operation"]
+    source = component["source"]
+    present_build_fields = BUILD_INPUT_FIELDS & set(source)
+    has_singular_input = "asset" in source or "object" in source
+    def exact_toolchain() -> None:
+        expect(source["toolchain"].endswith(f"@sha256:{source['toolchainDigest']}"), "toolchain immutable locator and digest disagree")
+
+    if operation in {"build", "assemble-data"}:
+        expect(present_build_fields == BUILD_INPUT_FIELDS, f"{operation} requires locked dependencies, exact toolchain digest, and explicit build flags")
+        expect(source["lockedDependencies"] is True, f"{operation} dependencies must be explicitly locked")
+        exact_toolchain()
+        expect(not has_singular_input, f"{operation} cannot claim a singular mirror input")
+    elif operation in {"identity-mirror", "rename-only"}:
+        exact_source_object(source)
+        expect(not present_build_fields, f"{operation} cannot carry contradictory build-input fields")
+    elif operation == "repackage":
+        exact_source_object(source)
+        expect(present_build_fields == BUILD_INPUT_FIELDS, "repackage requires exact input plus locked transformation toolchain and flags")
+        expect(source["lockedDependencies"] is True, "repackage dependencies must be explicitly locked")
+        exact_toolchain()
+    else:  # schema is closed, but semantic admission must remain fail-closed too
+        raise ForgeError(f"unsupported component operation: {operation}")
+
+    if operation == "identity-mirror":
+        identity = exact_source_object(source)
+        if component["artifactKind"] == "software":
+            expect(len(component["targets"]) == 1, "identity-mirror software requires exactly one source-bound target")
+            target = component["targets"][0]
+            output_name = render_name(component["naming"]["outerTemplate"], version=component["version"], os_name=target["os"], arch=target["arch"])
+        else:
+            output_name = component["naming"]["outerTemplate"]
+        expect(output_name == identity["name"], "identity-mirror output name must exactly match its upstream object")
+
+
+def load_warehouse_snapshot() -> tuple[dict[str, Any], dict[int, dict[str, Any]]]:
+    path = ROOT / WAREHOUSE_SNAPSHOT_PATH
+    digest, _ = sha256_file(path, max_bytes=16 * 2**20)
+    expect(digest == WAREHOUSE_SNAPSHOT_SHA256, "pinned 0.3.120 warehouse snapshot digest mismatch")
+    snapshot = load_json(path)
+    expect(snapshot.get("schemaVersion") == "phase0-release-inventory-v1", "unsupported warehouse snapshot schema")
+    for key, expected in WAREHOUSE_REPOSITORY.items():
+        expect(snapshot["repository"].get(key) == expected, f"pinned warehouse repository {key} mismatch")
+    for key, expected in WAREHOUSE_RELEASE.items():
+        expect(snapshot["release"].get(key) == expected, f"pinned warehouse release {key} mismatch")
+    assets = snapshot.get("assets", [])
+    expect(snapshot.get("assetCount") == len(assets), "pinned warehouse assetCount mismatch")
+    by_id = {asset["id"]: asset for asset in assets}
+    expect(len(by_id) == len(assets), "pinned warehouse snapshot has duplicate asset IDs")
+    expect(len({asset["name"] for asset in assets}) == len(assets), "pinned warehouse snapshot has duplicate asset names")
+    return snapshot, by_id
+
+
 def validate_component(component: dict[str, Any]) -> None:
     if isinstance(component, dict) and "compact" in str(component.get("family", "")).casefold():
         raise ForgeError("Compact is direct-upstream only and cannot be a warehouse component")
     schema_validate(component, "component-v1.schema.json")
+    validate_operation_contract(component)
     family = component["family"]
     lowered_family = family.casefold()
     expect("compact" not in lowered_family, "Compact is direct-upstream only and cannot be a warehouse component")
@@ -101,6 +177,7 @@ def validate_component(component: dict[str, Any]) -> None:
             seen_targets.add(pair)
             expect(RUNNER_TARGETS[target["runner"]] == pair, "runner label does not match native target")
             expect(target["tier"] == TIER_FOR_TARGET[pair], "target tier does not match platform policy")
+            expect(target.get("native") is True, "software target must assert native=true")
             render_name(naming["outerTemplate"], version=component["version"], os_name=pair[0], arch=pair[1])
         signing = component["signing"]
         has_macos = any(target["os"] == "macos" for target in component["targets"])
@@ -130,6 +207,9 @@ def validate_component(component: dict[str, Any]) -> None:
         source_object = component["source"].get("object")
         expect(isinstance(source_object, dict), "SRS requires one exact immutable source object")
         pinned = SRS_INVENTORY[k]
+        expect(source_object["id"] == f"sha256:{pinned['sha256']}", "SRS source object ID/K disagreement")
+        expect(source_object["name"] == pinned["releaseName"], "SRS source object name/K disagreement")
+        expect(source_object["url"] == f"https://srs.midnight.network/{pinned['releaseName']}", "SRS source object URL/K disagreement")
         expect(source_object["size"] == pinned["size"] and source_object["sha256"] == pinned["sha256"], "SRS source hash/size/K disagreement")
         expect(source_object.get("officialName") == (pinned["officialAlias"] or literal_name), "SRS source official-name/K disagreement")
         if k == 0:
@@ -187,12 +267,21 @@ def validate_build_set(build_set: dict[str, Any], root: Path, require_source_hea
         result = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=False, capture_output=True, text=True, timeout=10)
         expect(result.returncode == 0 and result.stdout.strip() == build_set["sourceFullSha"], "build set is not bound to current full source HEAD")
     components = load_components(root, build_set)
+    declared_semantics: dict[tuple[str, str, str, str], str] = {}
+    for component in components.values():
+        if component["artifactKind"] != "software":
+            continue
+        for target in component["targets"]:
+            key = (component["family"], component["version"], target["os"], target["arch"])
+            prior = declared_semantics.get(key)
+            expect(prior is None, f"duplicate software semantic tuple across component IDs: {key} ({prior}, {component['componentId']})")
+            declared_semantics[key] = component["componentId"]
     payloads = build_set["payloads"]
     expect(build_set["payloadCount"] == len(payloads), "payloadCount mismatch")
     names = [payload["name"] for payload in payloads]
     expect(names == sorted(names), "payload names must be lexically sorted")
     expect(len(names) == len(set(names)), "duplicate payload name")
-    candidate_coverage: set[tuple[str, str, str, str]] = set()
+    candidate_coverage: dict[tuple[str, str, str, str], tuple[str, str]] = {}
     for payload in payloads:
         safe_basename(payload["name"], "payload name")
         expect(payload["componentId"] in components, f"payload references unknown component: {payload['componentId']}")
@@ -205,7 +294,10 @@ def validate_build_set(build_set: dict[str, Any], root: Path, require_source_hea
             expect(payload["tier"] == target["tier"] == TIER_FOR_TARGET[pair], "software payload target tier mismatch")
             expected_name = render_name(component["naming"]["outerTemplate"], version=component["version"], os_name=pair[0], arch=pair[1])
             expect(payload["name"] == expected_name, "software payload name does not match family template")
-            candidate_coverage.add((component["family"], component["version"], pair[0], pair[1]))
+            semantic_key = (component["family"], component["version"], pair[0], pair[1])
+            prior = candidate_coverage.get(semantic_key)
+            expect(prior is None, f"duplicate software semantic tuple across payload names/component IDs: {semantic_key} ({prior}, {(payload['name'], payload['componentId'])})")
+            candidate_coverage[semantic_key] = (payload["name"], payload["componentId"])
         else:
             compatibility = component["compatibility"]
             expect(payload.get("platform") == "noarch" and payload["tier"] == "noarch", "proof payload must be architecture-neutral")
@@ -218,12 +310,39 @@ def validate_build_set(build_set: dict[str, Any], root: Path, require_source_hea
 
     all_coverage = set(candidate_coverage)
     coverage_names: set[str] = set()
+    _, warehouse_assets = load_warehouse_snapshot()
     for row in build_set["existingCoverage"]:
         safe_basename(row["name"], "existing coverage name")
         expect(row["tier"] == TIER_FOR_TARGET[(row["os"], row["arch"])], "existing coverage target tier mismatch")
         expect(row["name"] not in coverage_names, "duplicate existing coverage row")
         coverage_names.add(row["name"])
-        all_coverage.add((row["family"], row["version"], row["os"], row["arch"]))
+        expect(row["repository"] == WAREHOUSE_REPOSITORY["fullName"] and row["repositoryId"] == WAREHOUSE_REPOSITORY["id"] and row["repositoryNodeId"] == WAREHOUSE_REPOSITORY["nodeId"], "existing coverage repository identity mismatch")
+        expect(row["releaseTag"] == WAREHOUSE_RELEASE["tagName"] and row["releaseId"] == WAREHOUSE_RELEASE["id"] and row["releaseNodeId"] == WAREHOUSE_RELEASE["nodeId"], "existing coverage release identity mismatch")
+        expect(row["snapshotPath"] == WAREHOUSE_SNAPSHOT_PATH and row["snapshotSha256"] == WAREHOUSE_SNAPSHOT_SHA256, "existing coverage snapshot identity mismatch")
+        asset = warehouse_assets.get(row["assetId"])
+        expect(asset is not None, "existing coverage asset ID is absent from pinned 0.3.120 snapshot")
+        expect(asset.get("state") == "uploaded", "existing coverage asset is not uploaded")
+        expect(asset["nodeId"] == row["assetNodeId"], "existing coverage asset node ID mismatch")
+        expect(asset["name"] == row["name"], "existing coverage asset name mismatch")
+        expect(asset["size"] == row["size"], "existing coverage asset size mismatch")
+        expect(asset.get("digest") == f"sha256:{row['sha256']}", "existing coverage asset digest mismatch")
+        key = (row["family"], row["version"], row["os"], row["arch"])
+        expect(key not in all_coverage, f"duplicate software semantic tuple across candidate/existing coverage: {key}")
+        component = next(
+            (
+                value
+                for value in components.values()
+                if value["artifactKind"] == "software"
+                and value["family"] == row["family"]
+                and value["version"] == row["version"]
+                and any((target["os"], target["arch"]) == (row["os"], row["arch"]) for target in value["targets"])
+            ),
+            None,
+        )
+        expect(component is not None, "existing coverage tuple is not declared by a pinned component")
+        expected_name = render_name(component["naming"]["outerTemplate"], version=row["version"], os_name=row["os"], arch=row["arch"])
+        expect(row["name"] == expected_name, "existing coverage asset name is not the component's canonical rendered name")
+        all_coverage.add(key)
 
     report: dict[str, Any] = {"schemaVersion": "coverage-report-v1", "buildSetId": build_set["buildSetId"], "families": []}
     software_pairs = sorted({(component["family"], component["version"]) for component in components.values() if component["artifactKind"] == "software"})

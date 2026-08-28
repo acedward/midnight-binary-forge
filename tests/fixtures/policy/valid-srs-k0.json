@@ -8,6 +8,8 @@
     "repository": "midnightntwrk/midnight-ledger",
     "commitSha": "7a89f45d29792be7e09ca5eb246f1e69f0b2a179",
     "object": {
+      "id": "sha256:59b30b3114a34ccbbfb599376e178fb8d9b3366cae2174c2f1da20e75847f823",
+      "name": "bls_midnight_2p0",
       "url": "https://srs.midnight.network/bls_midnight_2p0",
       "size": 580,
       "sha256": "59b30b3114a34ccbbfb599376e178fb8d9b3366cae2174c2f1da20e75847f823",

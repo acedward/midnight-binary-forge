@@ -6,7 +6,11 @@
   "operation": "assemble-data",
   "source": {
     "repository": "midnightntwrk/midnight-ledger",
-    "commitSha": "7a89f45d29792be7e09ca5eb246f1e69f0b2a179"
+    "commitSha": "7a89f45d29792be7e09ca5eb246f1e69f0b2a179",
+    "lockedDependencies": true,
+    "toolchain": "docker.io/library/python:3.12-bookworm@sha256:8888888888888888888888888888888888888888888888888888888888888888",
+    "toolchainDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+    "buildFlags": ["--deterministic", "--member-manifest"]
   },
   "destination": {
     "repository": "effectstream/binaries",

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "adversarial-duplicate-software-tuple-v1",
+  "base": "valid-software.json",
+  "duplicateComponentId": "fixture-tool-alternate-1.0.0",
+  "duplicateOuterTemplate": "fixture-tool-alternate-{os}-{arch}-v{version}.zip",
+  "duplicatePayload": {
+    "name": "fixture-tool-alternate-linux-amd64-v1.0.0.zip",
+    "role": "payload",
+    "artifactKind": "software",
+    "componentId": "fixture-tool-alternate-1.0.0",
+    "tier": "required",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "semanticTuple": ["fixture-tool", "1.0.0", "linux", "amd64"]
+}

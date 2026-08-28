@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "adversarial-component-cases-v1",
+  "cases": [
+    {
+      "name": "audit-build-without-immutable-inputs",
+      "base": "valid-software.json",
+      "delete": ["source/lockedDependencies", "source/toolchain", "source/toolchainDigest", "source/buildFlags"]
+    },
+    { "name": "build-without-locked-dependencies", "base": "valid-software.json", "delete": ["source/lockedDependencies"] },
+    { "name": "build-without-toolchain", "base": "valid-software.json", "delete": ["source/toolchain"] },
+    { "name": "build-without-toolchain-digest", "base": "valid-software.json", "delete": ["source/toolchainDigest"] },
+    { "name": "build-without-explicit-flags", "base": "valid-software.json", "delete": ["source/buildFlags"] },
+    { "name": "build-with-mismatched-toolchain-digest", "base": "valid-software.json", "set": { "source/toolchainDigest": "9999999999999999999999999999999999999999999999999999999999999999" } },
+    { "name": "build-with-mutable-toolchain-tag", "base": "valid-software.json", "set": { "source/toolchain": "docker.io/library/python:3.12-bookworm" } },
+    {
+      "name": "audit-identity-mirror-without-object",
+      "base": "valid-srs-k1.json",
+      "delete": ["source/object"]
+    },
+    { "name": "mirror-object-without-id", "base": "valid-srs-k1.json", "delete": ["source/object/id"] },
+    { "name": "mirror-object-without-name", "base": "valid-srs-k1.json", "delete": ["source/object/name"] },
+    { "name": "mirror-object-without-url", "base": "valid-srs-k1.json", "delete": ["source/object/url"] },
+    { "name": "mirror-object-without-size", "base": "valid-srs-k1.json", "delete": ["source/object/size"] },
+    { "name": "mirror-object-without-sha256", "base": "valid-srs-k1.json", "delete": ["source/object/sha256"] },
+    {
+      "name": "audit-native-assertions-omitted",
+      "base": "valid-software.json",
+      "deleteEachTarget": ["native"]
+    },
+    {
+      "name": "native-assertion-false",
+      "base": "valid-software.json",
+      "set": { "targets/0/native": false }
+    },
+    {
+      "name": "mirror-with-contradictory-build-field",
+      "base": "valid-srs-k1.json",
+      "set": { "source/lockedDependencies": true }
+    },
+    {
+      "name": "build-with-contradictory-mirror-object",
+      "base": "valid-software.json",
+      "set": {
+        "source/object": {
+          "id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "name": "fixture-tool-source.tar.gz",
+          "url": "https://example.test/fixture-tool-source.tar.gz",
+          "size": 1024,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      }
+    },
+    {
+      "name": "mirror-with-asset-and-object",
+      "base": "valid-srs-k1.json",
+      "set": {
+        "source/asset": {
+          "id": 1,
+          "name": "bls_midnight_2p1",
+          "url": "https://example.test/bls_midnight_2p1",
+          "size": 772,
+          "sha256": "bbe04fe3c70d0c138447cb086b4baddc30cb8bb2a004114bc02e6f739516280e"
+        }
+      }
+    }
+  ]
+}
