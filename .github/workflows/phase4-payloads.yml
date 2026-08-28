@@ -345,8 +345,13 @@ jobs:
             --url https://github.com/rust-secure-code/cargo-auditable/releases/download/v0.7.5/cargo-auditable-aarch64-apple-darwin.tar.xz \
             --output "$work/download/cargo-auditable-aarch64-apple-darwin.tar.xz" --size 384452 \
             --sha256 92720fff2be27492ca7b216510a27e88a835b526e9e94e46bc36b502ba17d8f0
-          tar -tJf "$work/download/cargo-auditable-aarch64-apple-darwin.tar.xz" | grep -Fxq cargo-auditable
-          tar -xJf "$work/download/cargo-auditable-aarch64-apple-darwin.tar.xz" --no-same-owner --no-same-permissions -C "$work/tool" cargo-auditable
+          cargo_auditable_members=$(tar -tJf "$work/download/cargo-auditable-aarch64-apple-darwin.tar.xz")
+          test "$(printf '%s\n' "$cargo_auditable_members" | wc -l | tr -d ' ')" = 6
+          printf '%s\n' "$cargo_auditable_members" | grep -Fxq cargo-auditable-aarch64-apple-darwin/cargo-auditable
+          if printf '%s\n' "$cargo_auditable_members" | grep -Eq '(^/|(^|/)\.\.(/|$)|\\)'; then exit 2; fi
+          tar -xJf "$work/download/cargo-auditable-aarch64-apple-darwin.tar.xz" \
+            --no-same-owner --no-same-permissions --strip-components 1 -C "$work/tool" \
+            cargo-auditable-aarch64-apple-darwin/cargo-auditable
           chmod 0755 "$work/tool/cargo-auditable"
           export PATH="$work/tool:$PATH"
           rustup toolchain install 1.95.0 --profile minimal
