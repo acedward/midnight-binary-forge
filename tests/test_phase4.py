@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -92,6 +93,43 @@ def extract_fixture(root: Path, contract: str, renamed: str | None = None) -> tu
         arguments.extend(("--renamed-executable", renamed))
     run_script("phase4_payloads.py", *arguments)
     return staging, manifest, report
+
+
+def file_identity(path: Path) -> dict[str, object]:
+    data = path.read_bytes()
+    return {"name": path.name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+
+
+def make_macos_build_fixture(root: Path) -> None:
+    payload = root / "payloads/midnight-node-toolkit-macos-arm64-2.0.0-rc.4.zip"
+    evidence = root / "evidence"
+    sbom = root / "sbom"
+    payload.parent.mkdir(parents=True)
+    evidence.mkdir()
+    sbom.mkdir()
+    payload.write_bytes(b"deterministic zip fixture\n")
+    contents = {
+        evidence / "build-and-system.log": b"build fixture\n",
+        evidence / "macos-signature.json": b'{"codeSignatureKind":"linker-adhoc"}\n',
+        evidence / "member-manifest.json": b'{"members":[]}\n',
+        evidence / "native-build-report.json": b'{"sourceDateEpoch":"1783616457"}\n',
+        evidence / "probe.log": b"probe fixture\n",
+        sbom / "midnight-node-toolkit-macos-arm64-2.0.0-rc.4.cyclonedx.json": b'{"bomFormat":"CycloneDX"}\n',
+        sbom / "midnight-node-toolkit-macos-arm64-2.0.0-rc.4.spdx.json": b'{"spdxVersion":"SPDX-2.3"}\n',
+    }
+    for path, data in contents.items():
+        path.write_bytes(data)
+    record = {
+        "payload": file_identity(payload),
+        "evidence": sorted((file_identity(path) for path in contents), key=lambda row: str(row["name"])),
+        "signing": {"codeSignatureKind": "linker-adhoc"},
+        "source": {"buildFlags": ["SOURCE_DATE_EPOCH=1783616457"]},
+    }
+    payload_evidence = evidence / "payload-evidence.json"
+    payload_evidence.write_text(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+    checksum_paths = [payload, payload_evidence, *contents]
+    rows = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n" for path in sorted(checksum_paths, key=lambda item: item.name)]
+    (evidence / "SHA256SUMS").write_text("".join(rows))
 
 
 class Phase4PayloadTest(unittest.TestCase):
@@ -237,6 +275,100 @@ class Phase4PayloadTest(unittest.TestCase):
         self.assertEqual(workflow.count(command), 2)
         self.assertIn("grep -Fq 'cmd LC_UUID'", workflow)
 
+    def test_macos_build_contract_cross_binding_and_mutations(self) -> None:
+        component_path = ROOT / "catalog/components/midnight-node-toolkit-2.0.0-rc.4-macos-arm64.json"
+        pins_path = ROOT / "evidence/phase4/source-pins.json"
+        workflow_path = ROOT / ".github/workflows/phase4-payloads.yml"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            component = root / "component.json"
+            pins = root / "pins.json"
+            workflow = root / "workflow.yml"
+            report = root / "native-build-report.json"
+            payload_evidence = root / "payload-evidence.json"
+            component.write_bytes(component_path.read_bytes())
+            pins.write_bytes(pins_path.read_bytes())
+            workflow.write_bytes(workflow_path.read_bytes())
+            report.write_text('{"sourceDateEpoch":"1783616457"}\n')
+            flags = json.loads(component.read_text())["source"]["buildFlags"]
+            payload_evidence.write_text(json.dumps({"source": {"buildFlags": flags}}) + "\n")
+            arguments = (
+                "--component", str(component), "--pins", str(pins), "--workflow", str(workflow),
+                "--native-report", str(report), "--payload-evidence", str(payload_evidence),
+            )
+            run_script("validate_phase4_contract.py", *arguments)
+
+            mutations: list[tuple[str, Path, bytes]] = []
+            mutated_pins = json.loads(pins.read_text())
+            mutated_pins["node"]["toolkitSource"]["sourceDateEpoch"] = "1783616458"
+            mutations.append(("pins", pins, (json.dumps(mutated_pins) + "\n").encode()))
+            mutated_component = json.loads(component.read_text())
+            mutated_component["source"]["buildFlags"].remove("SOURCE_DATE_EPOCH=1783616457")
+            mutations.append(("component", component, (json.dumps(mutated_component) + "\n").encode()))
+            mutations.append(("workflow", workflow, workflow.read_bytes().replace(b"SOURCE_DATE_EPOCH: '1783616457'", b"SOURCE_DATE_EPOCH: '1783616458'", 1)))
+            mutations.append(("native-report", report, b'{"sourceDateEpoch":"1783616458"}\n'))
+            mutations.append(("payload-evidence", payload_evidence, b'{"source":{"buildFlags":[]}}\n'))
+            originals = {path: path.read_bytes() for _, path, _ in mutations}
+            for name, path, data in mutations:
+                with self.subTest(mutation=name):
+                    path.write_bytes(data)
+                    result = run_script("validate_phase4_contract.py", *arguments, expected=2)
+                    self.assertIn("ERROR:", result.stderr)
+                    path.write_bytes(originals[path])
+
+    def test_complete_macos_two_build_closure_and_negatives(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build1 = root / "build1"
+            build2 = root / "build2"
+            make_macos_build_fixture(build1)
+            make_macos_build_fixture(build2)
+            comparison = root / "comparison.log"
+            comparison.write_text("independentBuildDigestMatch=true\ncleanRuntimeProbe=PASS\n")
+            output = root / "consolidated"
+            run_script(
+                "consolidate_phase4_macos.py", "assemble",
+                "--build1", str(build1), "--build2", str(build2),
+                "--comparison-log", str(comparison), "--output", str(output),
+            )
+            run_script("consolidate_phase4_macos.py", "verify", "--root", str(output))
+            root_rows = (output / "SHA256SUMS").read_text().splitlines()
+            expected_files = [path for path in output.rglob("*") if path.is_file() and path != output / "SHA256SUMS"]
+            self.assertEqual(len(root_rows), len(expected_files))
+            self.assertTrue(any("independent-builds/build2/evidence/build-and-system.log" in row for row in root_rows))
+            self.assertTrue(any("independent-builds/build2/sbom/" in row for row in root_rows))
+
+            for name, mutation in (
+                ("missing", lambda tree: (tree / "independent-builds/build2/evidence/probe.log").unlink()),
+                ("extra", lambda tree: (tree / "independent-builds/build2/evidence/extra.log").write_text("extra\n")),
+                ("mutated", lambda tree: (tree / "independent-builds/build2/evidence/probe.log").write_text("changed\n")),
+            ):
+                with self.subTest(mutation=name):
+                    mutated = root / f"negative-{name}"
+                    shutil.copytree(output, mutated)
+                    mutation(mutated)
+                    self.assertIn("ERROR:", run_script("consolidate_phase4_macos.py", "verify", "--root", str(mutated), expected=2).stderr)
+
+            dangling = root / "negative-dangling"
+            shutil.copytree(output, dangling)
+            build2_root = dangling / "independent-builds/build2"
+            record_path = build2_root / "evidence/payload-evidence.json"
+            record = json.loads(record_path.read_text())
+            record["evidence"].append({"name": "missing.json", "size": 1, "sha256": "0" * 64})
+            record_path.write_text(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+            inner_sums = build2_root / "evidence/SHA256SUMS"
+            inner_sums.write_text("".join(
+                f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+                for path in sorted((path for path in build2_root.rglob("*") if path.is_file() and path != inner_sums), key=lambda item: item.name)
+            ))
+            root_sum = dangling / "SHA256SUMS"
+            root_sum.write_text("".join(
+                f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(dangling).as_posix()}\n"
+                for path in sorted((path for path in dangling.rglob("*") if path.is_file() and path != root_sum), key=lambda item: item.relative_to(dangling).as_posix())
+            ))
+            result = run_script("consolidate_phase4_macos.py", "verify", "--root", str(dangling), expected=2)
+            self.assertIn("dangling payload evidence reference", result.stderr)
+
     def test_source_pins_and_transformation_script_digests_are_closed(self) -> None:
         pins = json.loads((ROOT / "evidence/phase4/source-pins.json").read_text())
         self.assertEqual(pins["node"]["commitSha"], "651e043b61ed445bf7a5066c60c87ea7bd606073")
@@ -251,6 +383,11 @@ class Phase4PayloadTest(unittest.TestCase):
         self.assertEqual(
             pins["node"]["toolkitSource"]["cargoAuditableWrapperPath"],
             "$RUNNER_TEMP/phase4-macos-build/tool/cargo-auditable",
+        )
+        self.assertEqual(pins["node"]["toolkitSource"]["sourceDateEpoch"], "1783616457")
+        self.assertEqual(
+            pins["node"]["toolkitSource"]["sourceDateEpochDerivation"],
+            "git-commit-committer-unix-seconds:651e043b61ed445bf7a5066c60c87ea7bd606073",
         )
         self.assertEqual(pins["celestiaApp"]["license"]["spdx"], "Apache-2.0")
         self.assertEqual(pins["celestiaNode"]["license"]["spdx"], "Apache-2.0")

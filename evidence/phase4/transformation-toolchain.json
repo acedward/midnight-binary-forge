@@ -4,6 +4,10 @@
   "zipCompression": "deflate-9",
   "scripts": [
     {
+      "path": "scripts/consolidate_phase4_macos.py",
+      "sha256": "f1aad73e6c4a66e680ca9e07a33979bd5db9aebae39b1d0aee87b1a7d3d0c6b5"
+    },
+    {
       "path": "scripts/fetch_verified.py",
       "sha256": "23302c027b40b74157b8fbf2d8de8be2cd5ea7cc390a54774617c32d5f3a67f2"
     },
@@ -14,6 +18,10 @@
     {
       "path": "scripts/phase4_payloads.py",
       "sha256": "3c5f75d2bb16fe7fa5527e88fd1c9a1cbecfc317efc8bbba206c95e10c529d7d"
+    },
+    {
+      "path": "scripts/validate_phase4_contract.py",
+      "sha256": "acb17661c01d9dec8b69586d5c076473c0e9c2537a15d47d1c72176f447b1d37"
     }
   ]
 }

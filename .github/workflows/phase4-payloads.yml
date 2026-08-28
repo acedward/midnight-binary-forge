@@ -340,6 +340,11 @@ jobs:
           test "$(git -C upstream rev-parse HEAD)" = 651e043b61ed445bf7a5066c60c87ea7bd606073
           test "$(git -C upstream rev-parse 'HEAD^{tree}')" = 5c34f67538f20811d876f6463cf9aca5a3bc4fc9
           test "$(shasum -a 256 upstream/Cargo.lock | cut -d' ' -f1)" = 5e95c05593b49eda1cd017e1ebbfafa8df321fb42c9a6011f3fba3e8491fed91
+          test "$SOURCE_DATE_EPOCH" = "$(git -C upstream show -s --format=%ct HEAD)"
+          test "$(jq -r '.node.toolkitSource.sourceDateEpoch' evidence/phase4/source-pins.json)" = "$SOURCE_DATE_EPOCH"
+          test "$(jq -r '.node.toolkitSource.sourceDateEpochDerivation' evidence/phase4/source-pins.json)" = "git-commit-committer-unix-seconds:$(git -C upstream rev-parse HEAD)"
+          test "$(jq -r '.source.buildFlags[]' catalog/components/midnight-node-toolkit-2.0.0-rc.4-macos-arm64.json | grep -Fxc "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH")" = 1
+          python3 scripts/validate_phase4_contract.py --root .
           grep -Fq 'default = []' upstream/util/toolkit/Cargo.toml
           grep -Fq 'erase-proof' upstream/util/toolkit/Cargo.toml
           build_id='${{ matrix.build_id }}'
@@ -418,6 +423,10 @@ jobs:
             --sbom-cyclonedx "$out/sbom/midnight-node-toolkit-macos-arm64-2.0.0-rc.4.cyclonedx.json" \
             --signature "$out/evidence/macos-signature.json" \
             --output "$out/evidence/payload-evidence.json" --checksums "$out/evidence/SHA256SUMS"
+          jq -e --arg epoch "$SOURCE_DATE_EPOCH" '.sourceDateEpoch == $epoch' "$out/evidence/native-build-report.json"
+          jq -e --arg epoch "$SOURCE_DATE_EPOCH" '.source.buildFlags | index("SOURCE_DATE_EPOCH=" + $epoch) != null' "$out/evidence/payload-evidence.json"
+          python3 scripts/validate_phase4_contract.py --root . \
+            --native-report "$out/evidence/native-build-report.json" --payload-evidence "$out/evidence/payload-evidence.json"
       - name: Upload inert native build payload and evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -456,10 +465,6 @@ jobs:
           ditto -x -k "compare/build1/payloads/$payload" "$RUNNER_TEMP/phase4-compare/build1"
           ditto -x -k "compare/build2/payloads/$payload" "$RUNNER_TEMP/phase4-compare/build2"
           test "$(shasum -a 256 "$RUNNER_TEMP/phase4-compare/build1/midnight-node-toolkit" | cut -d' ' -f1)" = "$(shasum -a 256 "$RUNNER_TEMP/phase4-compare/build2/midnight-node-toolkit" | cut -d' ' -f1)"
-          mkdir -p phase4-output-toolkit-macos-arm64/independent-build-evidence
-          cp -R compare/build1/. phase4-output-toolkit-macos-arm64/
-          cp compare/build2/evidence/payload-evidence.json phase4-output-toolkit-macos-arm64/independent-build-evidence/build2-payload-evidence.json
-          cp compare/build2/evidence/macos-signature.json phase4-output-toolkit-macos-arm64/independent-build-evidence/build2-macos-signature.json
           ditto -x -k "compare/build1/payloads/$payload" "$RUNNER_TEMP/phase4-clean-host"
           clean_bin="$RUNNER_TEMP/phase4-clean-host/midnight-node-toolkit"
           test "$(lipo -archs "$clean_bin")" = arm64
@@ -491,9 +496,12 @@ jobs:
             sw_vers
             uname -m
             otool -L "$clean_bin"
-          } >phase4-output-toolkit-macos-arm64/evidence/independent-build-and-clean-host.log
-          shasum -a 256 phase4-output-toolkit-macos-arm64/evidence/independent-build-and-clean-host.log \
-            >>phase4-output-toolkit-macos-arm64/evidence/SHA256SUMS
+          } >"$RUNNER_TEMP/phase4-independent-build-and-clean-host.log"
+          python3 scripts/consolidate_phase4_macos.py assemble \
+            --build1 compare/build1 --build2 compare/build2 \
+            --comparison-log "$RUNNER_TEMP/phase4-independent-build-and-clean-host.log" \
+            --output phase4-output-toolkit-macos-arm64
+          python3 scripts/consolidate_phase4_macos.py verify --root phase4-output-toolkit-macos-arm64
       - name: Upload consolidated reproducible macOS payload and evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
