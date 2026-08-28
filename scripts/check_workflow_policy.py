@@ -56,6 +56,12 @@ def validate_workflow(path: Path) -> None:
         expect("--clobber" not in text and "delete release" not in text.casefold() and "-X DELETE" not in text, "candidate.yml: destructive release mutation token is forbidden")
         for artifact_id in (9685464135, 9688244894, 9688243729, 9688330126, 9688263793, 9688255774, 9689647047, 9690093579):
             expect(str(artifact_id) in text, f"candidate.yml: audited input artifact pin missing: {artifact_id}")
+    if path.name == "phase6-live-verification.yml":
+        expect("github.event.workflow_run.conclusion == 'failure'" in text, "phase6-live-verification.yml: failed-source recovery trigger missing")
+        expect("scripts/github_phase6.py recover-publication" in text and "scripts/github_phase6.py verify-recovery" in text, "phase6-live-verification.yml: read-only recovery/verifier commands missing")
+        expect("phase6-recovered-publication-${{ github.event.workflow_run.id }}" in text, "phase6-live-verification.yml: recovered evidence retention missing")
+        expect("cp -- recovered/promotion-claims-initial-warehouse-v1.json recovered/promotion-claims-initial-warehouse-v1" in text, "phase6-live-verification.yml: exact attestation subject materialization missing")
+        expect("gh attestation verify recovered/promotion-claims-initial-warehouse-v1" in text and "rm -- recovered/promotion-claims-initial-warehouse-v1" in text, "phase6-live-verification.yml: recovered claims cryptographic verification/cleanup missing")
 
 
 def main() -> int:

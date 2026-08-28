@@ -65,3 +65,57 @@ jobs:
           retention-days: 30
           compression-level: 0
           overwrite: false
+
+  recover-post-publication-handoff-loss:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    steps:
+      - name: Check out exact failed candidate commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install verifier dependencies
+        run: python3 -m pip install --requirement requirements-ci.txt
+      - name: Classify and reconstruct only an existing exact immutable publication
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/github_phase6.py recover-publication \
+            --run-id "${{ github.event.workflow_run.id }}" \
+            --expected-head "${{ github.event.workflow_run.head_sha }}" \
+            --build-set-id initial-warehouse-v1 \
+            --output-dir recovered
+      - name: Cryptographically verify recovered original-run claims attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cp -- recovered/promotion-claims-initial-warehouse-v1.json recovered/promotion-claims-initial-warehouse-v1
+          gh attestation verify recovered/promotion-claims-initial-warehouse-v1 \
+            --repo "$GITHUB_REPOSITORY" \
+            --bundle recovered/attestation-initial-warehouse-v1.sigstore.json \
+            --predicate-type 'https://github.com/acedward/midnight-binary-forge/predicates/promotion-envelope/v1'
+          rm -- recovered/promotion-claims-initial-warehouse-v1
+          python3 scripts/github_phase6.py verify-recovery \
+            --claims recovered/promotion-claims-initial-warehouse-v1.json \
+            --draft recovered/draft.json \
+            --envelope recovered/promotion-envelope-initial-warehouse-v1.json \
+            --bundle recovered/attestation-initial-warehouse-v1.sigstore.json \
+            --evidence recovered/recovered-publication.json
+      - name: Retain canonical read-only recovered-publication evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase6-recovered-publication-${{ github.event.workflow_run.id }}
+          path: recovered/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+          overwrite: false
