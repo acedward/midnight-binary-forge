@@ -13,18 +13,25 @@ writes. `effectstream/binaries@0.3.120` is updated manually outside Actions.
 3. Native build/mirror jobs run without secrets/write/OIDC. They emit payloads and content evidence
    with exact roles. Software gets SBOM/provenance; proof data gets lineage/member evidence and no
    fabricated signing/SBOM fields.
-4. Upload content to short-lived staging. A fresh verifier downloads it with no cache/credentials,
-   verifies exact content, and emits `promotion-envelope-v1` claims. Capture the UTC verification
-   time and require staging availability then.
-5. Create a `forge-YYYY.MM.DD.N` draft and bind its known ID/node/tag/target/URL. Attest the claims
-   digest from protected main; create the detached bundle and envelope under their predeclared names.
-6. The protected publisher downloads the verified staging artifact again, requires exact name/count/
-   size/digest equality, and treats all files as inert. Upload content plus exactly two transport
-   files to the draft. Do not extract or execute them.
-7. Re-download every draft asset through the API, hash it, verify exact complete names/counts, then
-   publish. API-read immutable state. Any upload/read-back/policy mismatch leaves a draft and fails.
-8. Emit live evidence and verify workflow blob/run/artifact/protected-main/release identity plus every
-   independently downloaded byte. Prove a mutation attempt is rejected by immutable release policy.
+4. Upload content to short-lived staging. A fresh pre-draft verifier downloads it with no cache or
+   credentials, verifies every exact content byte, and emits only the content-list digest required
+   to allocate the draft. It does not emit final claims.
+5. The protected publisher creates an empty `forge-YYYY.MM.DD.N` draft, then reads back and freezes
+   its repository/tag/numeric+node ID/target/URL identity. It passes only that inert identity to a
+   second fresh no-write/no-OIDC verifier.
+6. The final-claims verifier independently downloads staging again, requires exact content, checks
+   liveness against authenticated GitHub API server time, and emits canonical draft-bound claims and
+   predicate. It cannot mutate the draft or attest, and no later step may change those claims.
+7. Back in the protected publisher, attest exactly the canonical claims digest with the frozen
+   subject name and custom predicate contract. Download the detached bundle, bind its digest in the
+   canonical envelope, download staging again, and require exact inert name/count/size/digest
+   equality. Never extract or execute candidate files.
+8. Upload content plus exactly the two predeclared transport files to the draft. Re-download every
+   draft asset through the API, hash it, verify the exact complete name/count/byte set, then publish.
+   API-read immutable state. Any upload/read-back/policy mismatch leaves a draft and fails.
+9. Emit live evidence and verify workflow blob/run/artifact/protected-main/release identity plus every
+   independently downloaded byte, including the raw envelope and bundle. Prove a mutation attempt is
+   rejected by immutable release policy.
 
 ## Workflow permissions
 
