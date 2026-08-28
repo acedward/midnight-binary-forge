@@ -284,16 +284,31 @@ class Phase4PayloadTest(unittest.TestCase):
             component = root / "component.json"
             pins = root / "pins.json"
             workflow = root / "workflow.yml"
+            transformation_record = root / "transformation-toolchain.json"
+            evidence_toolchain = root / "evidence-closure-toolchain.json"
+            components_dir = root / "components"
             report = root / "native-build-report.json"
             payload_evidence = root / "payload-evidence.json"
+            components_dir.mkdir()
             component.write_bytes(component_path.read_bytes())
             pins.write_bytes(pins_path.read_bytes())
             workflow.write_bytes(workflow_path.read_bytes())
+            transformation_record.write_bytes((ROOT / "evidence/phase4/transformation-toolchain.json").read_bytes())
+            evidence_toolchain.write_bytes((ROOT / "evidence/phase4/evidence-closure-toolchain.json").read_bytes())
+            linux_names = (
+                "midnight-node-2.0.0-rc.4-linux-arm64.json",
+                "midnight-node-toolkit-2.0.0-rc.4-linux-amd64.json",
+                "midnight-node-toolkit-2.0.0-rc.4-linux-arm64.json",
+            )
+            for name in linux_names:
+                (components_dir / name).write_bytes((ROOT / "catalog/components" / name).read_bytes())
             report.write_text('{"sourceDateEpoch":"1783616457"}\n')
             flags = json.loads(component.read_text())["source"]["buildFlags"]
             payload_evidence.write_text(json.dumps({"source": {"buildFlags": flags}}) + "\n")
             arguments = (
                 "--component", str(component), "--pins", str(pins), "--workflow", str(workflow),
+                "--transformation-record", str(transformation_record),
+                "--evidence-toolchain", str(evidence_toolchain), "--components-dir", str(components_dir),
                 "--native-report", str(report), "--payload-evidence", str(payload_evidence),
             )
             run_script("validate_phase4_contract.py", *arguments)
@@ -308,6 +323,14 @@ class Phase4PayloadTest(unittest.TestCase):
             mutations.append(("workflow", workflow, workflow.read_bytes().replace(b"SOURCE_DATE_EPOCH: '1783616457'", b"SOURCE_DATE_EPOCH: '1783616458'", 1)))
             mutations.append(("native-report", report, b'{"sourceDateEpoch":"1783616458"}\n'))
             mutations.append(("payload-evidence", payload_evidence, b'{"source":{"buildFlags":[]}}\n'))
+            mutations.append(("transformation-record", transformation_record, transformation_record.read_bytes() + b" "))
+            mutations.append(("evidence-toolchain-record", evidence_toolchain, evidence_toolchain.read_bytes() + b" "))
+            linux_component = components_dir / linux_names[0]
+            mutated_linux = json.loads(linux_component.read_text())
+            fake_digest = "f" * 64
+            mutated_linux["source"]["toolchainDigest"] = fake_digest
+            mutated_linux["source"]["toolchain"] = f"forge-phase4-transformation-toolchain-v1@sha256:{fake_digest}"
+            mutations.append(("self-consistent-stale-component-record", linux_component, (json.dumps(mutated_linux) + "\n").encode()))
             originals = {path: path.read_bytes() for _, path, _ in mutations}
             for name, path, data in mutations:
                 with self.subTest(mutation=name):
@@ -391,9 +414,26 @@ class Phase4PayloadTest(unittest.TestCase):
         )
         self.assertEqual(pins["celestiaApp"]["license"]["spdx"], "Apache-2.0")
         self.assertEqual(pins["celestiaNode"]["license"]["spdx"], "Apache-2.0")
-        toolchain = json.loads((ROOT / "evidence/phase4/transformation-toolchain.json").read_text())
-        for row in toolchain["scripts"]:
-            self.assertEqual(hashlib.sha256((ROOT / row["path"]).read_bytes()).hexdigest(), row["sha256"])
+        transformation_path = ROOT / "evidence/phase4/transformation-toolchain.json"
+        transformation_digest = hashlib.sha256(transformation_path.read_bytes()).hexdigest()
+        self.assertEqual(transformation_digest, "141140312f43ea071a0f6cc50bf6374f6c0e1437651089eecd65a6b9369b936e")
+        for name in (
+            "midnight-node-2.0.0-rc.4-linux-arm64.json",
+            "midnight-node-toolkit-2.0.0-rc.4-linux-amd64.json",
+            "midnight-node-toolkit-2.0.0-rc.4-linux-arm64.json",
+        ):
+            source = json.loads((ROOT / "catalog/components" / name).read_text())["source"]
+            self.assertEqual(source["toolchainDigest"], transformation_digest)
+            self.assertEqual(source["toolchain"], f"forge-phase4-transformation-toolchain-v1@sha256:{transformation_digest}")
+        evidence_path = ROOT / "evidence/phase4/evidence-closure-toolchain.json"
+        evidence_digest = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+        evidence_binding = pins["node"]["toolkitSource"]["evidenceClosureToolchain"]
+        self.assertEqual(evidence_binding["sha256"], evidence_digest)
+        self.assertEqual(evidence_binding["locator"], f"forge-phase4-evidence-closure-toolchain-v1@sha256:{evidence_digest}")
+        for toolchain_path in (transformation_path, evidence_path):
+            toolchain = json.loads(toolchain_path.read_text())
+            for row in toolchain["scripts"]:
+                self.assertEqual(hashlib.sha256((ROOT / row["path"]).read_bytes()).hexdigest(), row["sha256"])
 
 
 if __name__ == "__main__":

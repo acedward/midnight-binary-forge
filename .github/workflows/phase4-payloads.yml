@@ -59,6 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/check_runner_capability.py --runner-label "${{ matrix.runner }}" --expected-os "$TARGET_OS" --expected-arch "$TARGET_ARCH" --require-tool git --min-free-gib 5
+          python3 scripts/validate_phase4_contract.py --root .
           work="$RUNNER_TEMP/phase4-toolkit-$TARGET_ARCH"
           out="$GITHUB_WORKSPACE/phase4-output-toolkit-$TARGET_OS-$TARGET_ARCH"
           mkdir -p "$work/download" "$work/run1/tree" "$work/run2/tree" "$work/run1/evidence" "$work/run2/evidence" "$out/payloads" "$out/evidence" "$out/sbom"
@@ -126,6 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/check_runner_capability.py --runner-label ubuntu-24.04-arm --expected-os linux --expected-arch arm64 --require-tool git --min-free-gib 8
+          python3 scripts/validate_phase4_contract.py --root .
           work="$RUNNER_TEMP/phase4-node-arm64"
           out="$GITHUB_WORKSPACE/phase4-output-node-linux-arm64"
           source_name=midnight-node-2.0.0-rc.4-linux-arm64.tar.gz

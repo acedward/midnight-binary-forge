@@ -89,7 +89,12 @@
       "cargoAuditableWrapperPath": "$RUNNER_TEMP/phase4-macos-build/tool/cargo-auditable",
       "macosDeploymentTarget": "13.0",
       "sourceDateEpoch": "1783616457",
-      "sourceDateEpochDerivation": "git-commit-committer-unix-seconds:651e043b61ed445bf7a5066c60c87ea7bd606073"
+      "sourceDateEpochDerivation": "git-commit-committer-unix-seconds:651e043b61ed445bf7a5066c60c87ea7bd606073",
+      "evidenceClosureToolchain": {
+        "path": "evidence/phase4/evidence-closure-toolchain.json",
+        "sha256": "a5f6a0b22ec5e511d8b85641edb94226c89f4471fa417e752609112f242bfcc5",
+        "locator": "forge-phase4-evidence-closure-toolchain-v1@sha256:a5f6a0b22ec5e511d8b85641edb94226c89f4471fa417e752609112f242bfcc5"
+      }
     }
   },
   "cargoAuditable": {
