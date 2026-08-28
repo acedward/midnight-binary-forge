@@ -100,9 +100,10 @@ def inspect_image_identity(image_digest: str, expected_arch: str) -> dict:
 
 def static10_rejection_diagnostic(logs: str, state: str, negative: dict, image_identity: dict, observed_version: str) -> dict:
     contract = negative["diagnosticContract"]
-    required = contract["requiredMissingPaths"]
-    observed = [path for path in required if path in logs]
-    expect(observed == required, "rc.7 rejection lacks every exact source-derived static-10 path diagnostic")
+    requested = contract["requestedProverPaths"]
+    required = contract["requiredFailurePath"]
+    observed = [path for path in requested if path in logs]
+    expect(required in observed, f"rc.7 rejection lacks exact source-derived propagated static-10 path diagnostic: {required}; observed={observed}")
     parts = state.split()
     expect(len(parts) == 2 and parts[0] in {"exited", "dead"} and parts[1].isdigit() and int(parts[1]) != 0, "rc.7 negative must terminate non-zero after the static-10 diagnostic")
     expect(observed_version == negative["version"], "rc.7 image version differs from the source-pinned negative contract")
@@ -114,7 +115,9 @@ def static10_rejection_diagnostic(logs: str, state: str, negative: dict, image_i
         "proofServerVersion": observed_version,
         "requiresLedgerStaticSemver": negative["requiresLedgerStaticSemver"],
         "cacheNamespace": negative["cacheNamespace"],
-        "requiredMissingPaths": required,
+        "requestedProverPaths": requested,
+        "requiredFailurePath": required,
+        "failurePropagation": contract["failurePropagation"],
         "observedMissingPaths": observed,
         "containerState": state,
         "image": image_identity,

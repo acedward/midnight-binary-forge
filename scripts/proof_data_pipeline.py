@@ -124,7 +124,9 @@ def validate_manifest(manifest: dict) -> None:
     diagnostic = negative["diagnosticContract"]
     expect(
         diagnostic["schemaVersion"] == "rc7-static10-diagnostic-contract-v1"
-        and diagnostic["requiredMissingPaths"] == generate_proof_catalog.RC7_REQUIRED_MISSING_PATHS
+        and diagnostic["requestedProverPaths"] == generate_proof_catalog.RC7_REQUESTED_PROVER_PATHS
+        and diagnostic["requiredFailurePath"] == generate_proof_catalog.RC7_REQUIRED_FAILURE_PATH
+        and diagnostic["failurePropagation"] == "proof-server-join-all-input-order-first-error"
         and diagnostic["sourceFiles"] == generate_proof_catalog.RC7_DIAGNOSTIC_SOURCES,
         "rc.7 source-derived diagnostic contract drift",
     )

@@ -353,10 +353,12 @@ class ProofDataPolicyTest(unittest.TestCase):
         with self.assertRaisesRegex(ForgeError, "source-derived"):
             proof_runtime_docker.static10_rejection_diagnostic("unrelated error", "exited 1", negative, image, "9.0.0-rc.7")
         with self.assertRaisesRegex(ForgeError, "source-derived"):
-            proof_runtime_docker.static10_rejection_diagnostic("zswap/10/spend.prover", "exited 1", negative, image, "9.0.0-rc.7")
-        logs = "\n".join(f"failed to fetch https://srs.midnight.network/{path}" for path in negative["diagnosticContract"]["requiredMissingPaths"])
+            proof_runtime_docker.static10_rejection_diagnostic("zswap/10/output.prover", "exited 1", negative, image, "9.0.0-rc.7")
+        required = negative["diagnosticContract"]["requiredFailurePath"]
+        logs = f"failed to fetch https://srs.midnight.network/{required}"
         evidence = proof_runtime_docker.static10_rejection_diagnostic(logs, "exited 1", negative, image, "9.0.0-rc.7")
-        self.assertEqual(evidence["observedMissingPaths"], negative["diagnosticContract"]["requiredMissingPaths"])
+        self.assertEqual(evidence["requiredFailurePath"], required)
+        self.assertEqual(evidence["observedMissingPaths"], [required])
         self.assertEqual(len(evidence["canonicalSha256"]), 64)
 
     def test_bootstrap_atomic_noop_repair_pointer_failure_and_gc(self) -> None:

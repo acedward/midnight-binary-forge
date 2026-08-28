@@ -39,12 +39,13 @@ RC7_DIAGNOSTIC_SOURCES = [
     {"path": "zswap/src/prove.rs", "sha256": "3ccb32bb5599c097f7f3829441944735ddde2cf199f737222736755d33fc3315"},
     {"path": "static/version", "sha256": "4a44dc15364204a80fe80e9039455cc1608281820fe2b24f1e5233ade6af1dd5"},
 ]
-RC7_REQUIRED_MISSING_PATHS = [
-    "dust/10/spend.prover",
+RC7_REQUESTED_PROVER_PATHS = [
+    "zswap/10/spend.prover",
     "zswap/10/output.prover",
     "zswap/10/sign.prover",
-    "zswap/10/spend.prover",
+    "dust/10/spend.prover",
 ]
+RC7_REQUIRED_FAILURE_PATH = RC7_REQUESTED_PROVER_PATHS[0]
 
 
 def exact_rc5_consumer() -> dict:
@@ -282,8 +283,10 @@ def proof_set(pins: dict, member_digest: str, zip_layout_digest: str) -> dict:
                 "diagnosticContract": {
                     "schemaVersion": "rc7-static10-diagnostic-contract-v1",
                     "sourceFiles": RC7_DIAGNOSTIC_SOURCES,
-                    "requiredMissingPaths": RC7_REQUIRED_MISSING_PATHS,
-                    "reason": "source-pinned-static10-paths-missing-from-static9-generation",
+                    "requestedProverPaths": RC7_REQUESTED_PROVER_PATHS,
+                    "requiredFailurePath": RC7_REQUIRED_FAILURE_PATH,
+                    "failurePropagation": "proof-server-join-all-input-order-first-error",
+                    "reason": "source-pinned-static10-propagated-path-missing-from-static9-generation",
                 },
             },
         },
