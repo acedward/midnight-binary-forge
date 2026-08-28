@@ -94,6 +94,7 @@ def execute(candidate_root: Path, aa_root: Path, work_root: Path, run_key: str, 
     digest = content["combinedManifestSha256"]
     fixed = f"/proof-params/generations/{digest}"
     proof_catalog = load_json(ROOT / "catalog/proof-data/q8b-v1.json")
+    expect(digest == proof_catalog["cacheContract"]["expectedCombinedManifestSha256"], "stock-AA candidate generation differs from reviewed Q8B admission")
     image = proof_catalog["proofServerCompatibility"]["accepted"]["images"]["experimental"]
     prefix = f"phase3p-aa-{safe_name(run_key)}"
     volume = f"{prefix}-proof"
@@ -126,6 +127,8 @@ def execute(candidate_root: Path, aa_root: Path, work_root: Path, run_key: str, 
                 PYTHON_IMAGE,
                 "python3", "/forge/scripts/proof_cache_bootstrap.py", "bootstrap",
                 "--manifest", "/candidate/evidence/proof-cache-content-manifest-v1.json",
+                "--admission-contract", "/forge/catalog/proof-data/q8b-cache-admission-v1.json",
+                "--expected-combined-manifest-sha256", digest,
                 "--payload-dir", "/candidate/payloads", "--parent", "/proof-params", "--readers-stopped",
             ],
             timeout=300,

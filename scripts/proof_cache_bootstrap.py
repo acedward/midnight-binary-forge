@@ -15,7 +15,23 @@ import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from forge_io import ForgeError, canonical_bytes, expect, load_json, normalized_mode, safe_basename, safe_member_name, sha256_file, validate_regular_file
+from forge_io import ForgeError, canonical_bytes, expect, load_json, normalized_mode, parse_sha256, safe_basename, safe_member_name, sha256_file, validate_regular_file
+
+
+LEDGER_PATHS = [
+    "dust/9/spend.bzkir",
+    "dust/9/spend.prover",
+    "dust/9/spend.verifier",
+    "zswap/9/output.bzkir",
+    "zswap/9/output.prover",
+    "zswap/9/output.verifier",
+    "zswap/9/sign.bzkir",
+    "zswap/9/sign.prover",
+    "zswap/9/sign.verifier",
+    "zswap/9/spend.bzkir",
+    "zswap/9/spend.prover",
+    "zswap/9/spend.verifier",
+]
 
 
 def fsync_directory(path: Path) -> None:
@@ -39,7 +55,80 @@ def fsync_tree(root: Path) -> None:
     fsync_directory(root)
 
 
-def load_content(path: Path) -> tuple[dict, str]:
+def validate_admitted_content(content: dict) -> None:
+    files = content.get("files")
+    expect(isinstance(files, list) and len(files) == 32 and content.get("fileCount") == 32 and content.get("payloadCount") == 21, "cache file/payload count mismatch")
+    names = [row.get("path") for row in files]
+    expect(all(isinstance(name, str) for name in names) and names == sorted(names) and len(set(names)) == len(names), "cache files must be uniquely sorted")
+    for row in files:
+        safe_member_name(row["path"])
+        expect(row["mode"] == "0644" and row["size"] > 0 and len(row["sha256"]) == 64, f"invalid file contract: {row['path']}")
+        expect(row["kind"] in {"srs", "ledger-static"}, f"invalid proof-data kind: {row['path']}")
+
+    srs = sorted((row for row in files if row["kind"] == "srs"), key=lambda row: row["k"])
+    expect([row["k"] for row in srs] == list(range(20)), "cache SRS scope must be K0-K19")
+    groups = content.get("srsGenerations")
+    expect(isinstance(groups, list) and len(groups) == 2, "cache must carry explicit K0 and K1-K19 SRS generations")
+    expect(groups[0]["k"] == [0] and groups[1]["k"] == list(range(1, 20)), "SRS generation partitions must be exactly K0 and K1-K19")
+    expect(
+        groups[0]["provenance"] == "ledger-provider-compatibility"
+        and groups[0]["rootPotSha256"] is None
+        and groups[0]["canonicalObjectSha256"] == srs[0]["sha256"],
+        "K0 generation/provenance mapping is invalid",
+    )
+    expect(
+        groups[1]["provenance"] == "trusted-setup-ceremony"
+        and isinstance(groups[1]["rootPotSha256"], str)
+        and len(groups[1]["rootPotSha256"]) == 64,
+        "K1-K19 trusted generation/root-PoT mapping is invalid",
+    )
+    for row in srs:
+        group = groups[0] if row["k"] == 0 else groups[1]
+        expect(row["path"] == f"bls_midnight_2p{row['k']}" and row["outerPayload"] == row["path"], f"SRS K/path/outer mapping mismatch: K{row['k']}")
+        expect(row["officialAlias"] == (None if row["k"] == 0 else f"midnight-srs-2p{row['k']}"), f"SRS official alias mismatch: K{row['k']}")
+        expect(row["outerSha256"] == row["sha256"], f"SRS raw/outer digest mismatch: K{row['k']}")
+        for field in ("generation", "provenance", "sourceRepository", "sourceCommit", "rootPotSha256"):
+            expect(row[field] == group[field], f"SRS {field} differs from its explicit generation mapping: K{row['k']}")
+
+    ledger = sorted((row for row in files if row["kind"] == "ledger-static"), key=lambda row: row["path"])
+    expect([row["path"] for row in ledger] == LEDGER_PATHS, "cache Ledger-static scope must be the exact twelve static-9 paths")
+    contract = content.get("ledgerStatic")
+    expect(
+        isinstance(contract, dict)
+        and contract["ledgerStaticSemver"] == "9.0.0"
+        and contract["cacheNamespace"] == "9"
+        and contract["outerPayload"] == "midnight-ledger-static-noarch-9.0.0.zip"
+        and contract["outerSize"] > 0
+        and len(contract["outerSha256"]) == 64
+        and len(contract["memberManifestSha256"]) == 64
+        and len(contract["zipLayoutManifestSha256"]) == 64,
+        "cache Ledger-static top-level identity is invalid",
+    )
+    semantic = {
+        "schemaVersion": "ledger-static-member-manifest-v1",
+        "members": [
+            {"path": row["path"], "bytes": row["size"], "sha256": row["sha256"], "mode": row["mode"]}
+            for row in ledger
+        ],
+    }
+    semantic_digest = hashlib.sha256(canonical_bytes(semantic) + b"\n").hexdigest()
+    expect(semantic_digest == contract["memberManifestSha256"], "cache Ledger semantic member-manifest identity mismatch")
+    for row in ledger:
+        expect(
+            row["ledgerStaticSemver"] == contract["ledgerStaticSemver"]
+            and row["cacheNamespace"] == contract["cacheNamespace"]
+            and row["memberManifestSha256"] == contract["memberManifestSha256"]
+            and row["outerPayload"] == contract["outerPayload"]
+            and row["outerSha256"] == contract["outerSha256"],
+            f"Ledger row differs from admitted static/archive identity: {row['path']}",
+        )
+    expect(
+        {row["outerPayload"] for row in files} == {*(f"bls_midnight_2p{k}" for k in range(20)), contract["outerPayload"]},
+        "cache payload selection differs from the exact 21 admitted objects",
+    )
+
+
+def load_content(path: Path, admission_path: Path, expected_digest: str) -> tuple[dict, str]:
     content = load_json(path)
     expect(content.get("schemaVersion") == "proof-cache-content-manifest-v1", "unsupported cache content manifest")
     claimed = content.get("combinedManifestSha256")
@@ -49,16 +138,26 @@ def load_content(path: Path) -> tuple[dict, str]:
     expect(projection.pop("identityProjection", None) == "all fields except combinedManifestSha256 and identityProjection", "unknown generation identity projection")
     actual = hashlib.sha256(canonical_bytes(projection)).hexdigest()
     expect(actual == claimed, "combined manifest SHA-256 mismatch")
-    files = content.get("files")
-    expect(isinstance(files, list) and len(files) == 32 and content.get("fileCount") == 32 and content.get("payloadCount") == 21, "cache file/payload count mismatch")
-    names = [row.get("path") for row in files]
-    expect(all(isinstance(name, str) for name in names) and names == sorted(names) and len(set(names)) == len(names), "cache files must be uniquely sorted")
-    for row in files:
-        safe_member_name(row["path"])
-        expect(row["mode"] == "0644" and row["size"] > 0 and len(row["sha256"]) == 64, f"invalid file contract: {row['path']}")
-        expect(row["kind"] in {"srs", "ledger-static"}, f"invalid proof-data kind: {row['path']}")
-    expect(sorted(row["k"] for row in files if row["kind"] == "srs") == list(range(20)), "cache SRS scope must be K0-K19")
-    expect(len([row for row in files if row["kind"] == "ledger-static"]) == 12, "cache Ledger-static scope must be twelve members")
+    expected_digest = parse_sha256(expected_digest, "expected combined manifest SHA-256")
+    expect(claimed == expected_digest, "content manifest differs from the independently configured expected generation")
+    admission = load_json(admission_path)
+    expect(admission.get("schemaVersion") == "proof-cache-admission-v1", "unsupported proof-cache admission contract")
+    expect(admission.get("canonicalization") == "forge-canonical-json-v1", "unsupported proof-cache admission canonicalization")
+    expect(admission.get("expectedCombinedManifestSha256") == expected_digest, "admission contract differs from expected generation")
+    proof_set_path = admission_path.parent / "q8b-v1.json"
+    proof_set = load_json(proof_set_path)
+    expect(
+        proof_set.get("schemaVersion") == "proof-data-set-v1"
+        and proof_set.get("decision") == "Q8=B"
+        and proof_set.get("setId") == admission.get("selection"),
+        "admission sibling is not the reviewed Q8B proof-set contract",
+    )
+    expect(hashlib.sha256(canonical_bytes(proof_set)).hexdigest() == admission.get("proofSetSha256"), "admission proof-set identity mismatch")
+    expect(proof_set.get("cacheContract", {}).get("expectedCombinedManifestSha256") == expected_digest, "Q8B proof-set expected generation mismatch")
+    admitted_content = admission.get("contentManifest")
+    expect(isinstance(admitted_content, dict) and canonical_bytes(admitted_content) == canonical_bytes(content), "content manifest differs from the reviewed Q8B admission contract")
+    expect(admission.get("selection") == content.get("selection"), "admission/content selection mismatch")
+    validate_admitted_content(content)
     return content, claimed
 
 
@@ -194,8 +293,8 @@ def atomic_activate(parent: Path, digest: str, fail_before_swap: bool = False) -
     expect(current_target(parent) == target, "current pointer activation failed")
 
 
-def bootstrap(content_path: Path, payload_dir: Path, parent: Path, readers_stopped: bool, nonblocking: bool, fail_stage: str | None) -> str:
-    content, digest = load_content(content_path)
+def bootstrap(content_path: Path, admission_path: Path, expected_digest: str, payload_dir: Path, parent: Path, readers_stopped: bool, nonblocking: bool, fail_stage: str | None) -> str:
+    content, digest = load_content(content_path, admission_path, expected_digest)
     expect(parent.is_dir() and not parent.is_symlink(), "persistent parent must be a real existing directory")
     expect(readers_stopped, "bootstrap/activation requires both readers stopped")
     lock = acquire_lock(parent, nonblocking)
@@ -267,8 +366,8 @@ def bootstrap(content_path: Path, payload_dir: Path, parent: Path, readers_stopp
         lock.close()
 
 
-def verify_active(content_path: Path, parent: Path) -> str:
-    content, digest = load_content(content_path)
+def verify_active(content_path: Path, admission_path: Path, expected_digest: str, parent: Path) -> str:
+    content, digest = load_content(content_path, admission_path, expected_digest)
     target = current_target(parent)
     expect(target == f"generations/{digest}", f"active generation mismatch: expected {digest}, got {target}")
     generation = parent / target
@@ -303,6 +402,8 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     install = sub.add_parser("bootstrap")
     install.add_argument("--manifest", required=True, type=Path)
+    install.add_argument("--admission-contract", required=True, type=Path)
+    install.add_argument("--expected-combined-manifest-sha256", required=True)
     install.add_argument("--payload-dir", required=True, type=Path)
     install.add_argument("--parent", required=True, type=Path)
     install.add_argument("--readers-stopped", action="store_true")
@@ -310,6 +411,8 @@ def main() -> int:
     install.add_argument("--inject-failure", choices=("after-verify", "pointer"))
     verify = sub.add_parser("verify-active")
     verify.add_argument("--manifest", required=True, type=Path)
+    verify.add_argument("--admission-contract", required=True, type=Path)
+    verify.add_argument("--expected-combined-manifest-sha256", required=True)
     verify.add_argument("--parent", required=True, type=Path)
     cleanup = sub.add_parser("gc")
     cleanup.add_argument("--parent", required=True, type=Path)
@@ -319,9 +422,9 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.command == "bootstrap":
-            bootstrap(args.manifest, args.payload_dir, args.parent, args.readers_stopped, args.nonblocking_lock, args.inject_failure)
+            bootstrap(args.manifest, args.admission_contract, args.expected_combined_manifest_sha256, args.payload_dir, args.parent, args.readers_stopped, args.nonblocking_lock, args.inject_failure)
         elif args.command == "verify-active":
-            path = verify_active(args.manifest, args.parent)
+            path = verify_active(args.manifest, args.admission_contract, args.expected_combined_manifest_sha256, args.parent)
             print(f"OK active={path}")
         else:
             removed = gc(args.parent, set(args.referenced), args.readers_stopped, args.nonblocking_lock)

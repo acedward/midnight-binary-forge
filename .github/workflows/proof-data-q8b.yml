@@ -240,6 +240,8 @@ jobs:
           mkdir -m 700 "$cache_parent"
           python3 scripts/proof_cache_bootstrap.py bootstrap \
             --manifest "$RUNNER_TEMP_ROOT/q8b-candidate/evidence/proof-cache-content-manifest-v1.json" \
+            --admission-contract "$GITHUB_WORKSPACE/catalog/proof-data/q8b-cache-admission-v1.json" \
+            --expected-combined-manifest-sha256 "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["cacheContract"]["expectedCombinedManifestSha256"])' "$GITHUB_WORKSPACE/catalog/proof-data/q8b-v1.json")" \
             --payload-dir "$RUNNER_TEMP_ROOT/q8b-candidate/payloads" \
             --parent "$cache_parent" --readers-stopped
           combined_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["combinedManifestSha256"])' "$RUNNER_TEMP_ROOT/q8b-candidate/evidence/proof-cache-content-manifest-v1.json")"

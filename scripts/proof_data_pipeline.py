@@ -28,6 +28,7 @@ from forge_io import (
     validate_regular_file,
     validate_unique_names,
 )
+import generate_proof_catalog
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -103,6 +104,11 @@ def validate_manifest(manifest: dict) -> None:
     ledger = manifest.get("ledgerStatic")
     expect(ledger["releaseName"] == "midnight-ledger-static-noarch-9.0.0.zip", "Ledger-static payload-name drift")
     expect(ledger["ledgerStaticSemver"] == "9.0.0" and ledger["cacheNamespace"] == "9", "Ledger-static version/namespace drift")
+    expect(
+        ledger["archiveSize"] == generate_proof_catalog.LEDGER_ARCHIVE_SIZE
+        and ledger["archiveSha256"] == generate_proof_catalog.LEDGER_ARCHIVE_SHA256,
+        "Ledger-static archive identity drift",
+    )
     members = ledger.get("members")
     expect(isinstance(members, list) and len(members) == 12, "Ledger-static must have exactly twelve data members")
     paths = [row["path"] for row in members]
@@ -115,15 +121,37 @@ def validate_manifest(manifest: dict) -> None:
     expect(positive["version"] == "9.0.0-rc.5" and positive["ledgerStaticSemver"] == "9.0.0" and positive["cacheNamespace"] == "9", "rc.5 positive compatibility drift")
     expect(negative["version"] == "9.0.0-rc.7" and negative["requiresLedgerStaticSemver"] == "10.0.0" and negative["cacheNamespace"] == "10" and negative["publicMultiarchTag"] is False, "rc.7 negative compatibility drift")
     expect(set(negative["images"]) == {"linux/amd64", "linux/arm64"}, "rc.7 must use architecture-specific image digests")
+    diagnostic = negative["diagnosticContract"]
+    expect(
+        diagnostic["schemaVersion"] == "rc7-static10-diagnostic-contract-v1"
+        and diagnostic["requiredMissingPaths"] == generate_proof_catalog.RC7_REQUIRED_MISSING_PATHS
+        and diagnostic["sourceFiles"] == generate_proof_catalog.RC7_DIAGNOSTIC_SOURCES,
+        "rc.7 source-derived diagnostic contract drift",
+    )
     expect(manifest["cacheContract"]["defaultSourceUrl"] == "https://srs.midnight.network/" and manifest["cacheContract"]["githubAsMidnightParamSourceAllowed"] is False, "official fallback/source contract drift")
+    expect(manifest["cacheContract"]["admissionContractPath"] == "catalog/proof-data/q8b-cache-admission-v1.json", "Q8B bootstrap admission contract drift")
     expect(manifest["scope"]["customProvingKeysIncluded"] is False, "custom proving keys are forbidden")
 
 
-def build_member_manifest(manifest: dict) -> dict:
-    reviewed = load_json(ROOT / manifest["ledgerStatic"]["memberManifestPath"])
-    digest = hashlib.sha256(canonical_bytes(reviewed)).hexdigest()
-    expect(digest == manifest["ledgerStatic"]["memberManifestSha256"], "reviewed member-manifest digest drift")
-    return reviewed
+def build_member_manifests(manifest: dict) -> tuple[dict, dict]:
+    semantic = load_json(ROOT / manifest["ledgerStatic"]["memberManifestPath"])
+    semantic_digest = generate_proof_catalog.warehouse_semantic_sha256(semantic)
+    expect(semantic_digest == manifest["ledgerStatic"]["memberManifestSha256"], "reviewed semantic member-manifest digest drift")
+    expect(
+        semantic == {
+            "schemaVersion": "ledger-static-member-manifest-v1",
+            "members": [
+                {"path": row["path"], "bytes": row["size"], "sha256": row["sha256"], "mode": row["mode"]}
+                for row in sorted(manifest["ledgerStatic"]["members"], key=lambda item: item["path"])
+            ],
+        },
+        "semantic member manifest differs from the warehouse canonical projection",
+    )
+    layout = load_json(ROOT / manifest["ledgerStatic"]["zipLayoutManifestPath"])
+    layout_digest = hashlib.sha256(canonical_bytes(layout)).hexdigest()
+    expect(layout_digest == manifest["ledgerStatic"]["zipLayoutManifestSha256"], "reviewed ZIP layout-manifest digest drift")
+    expect(layout.get("schemaVersion") == "deterministic-zip-layout-manifest-v1", "unsupported ZIP layout manifest")
+    return semantic, layout
 
 
 def deterministic_zip(source_root: Path, member_manifest: dict, output: Path) -> tuple[str, int]:
@@ -194,23 +222,7 @@ def verify_zip(archive_path: Path, member_manifest: dict) -> None:
 
 
 def cache_content_manifest(manifest: dict, ledger_outer: dict) -> dict:
-    files = []
-    for row in manifest["srs"]:
-        files.append({"path": row["installName"], "kind": "srs", "k": row["k"], "mode": "0644", "size": row["size"], "sha256": row["sha256"], "generation": row["generation"], "outerPayload": row["releaseName"], "outerSha256": row["sha256"]})
-    for row in manifest["ledgerStatic"]["members"]:
-        files.append({"path": row["path"], "kind": "ledger-static", "mode": "0644", "size": row["size"], "sha256": row["sha256"], "ledgerStaticSemver": "9.0.0", "cacheNamespace": "9", "outerPayload": manifest["ledgerStatic"]["releaseName"], "outerSha256": ledger_outer["sha256"]})
-    return {
-        "schemaVersion": "proof-cache-content-manifest-v1",
-        "canonicalization": "forge-canonical-json-v1",
-        "selection": manifest["setId"],
-        "srsGeneration": manifest["proofServerCompatibility"]["accepted"]["sourceCommit"],
-        "ledgerStaticSemver": "9.0.0",
-        "cacheNamespace": "9",
-        "ledgerMemberManifestSha256": manifest["ledgerStatic"]["memberManifestSha256"],
-        "files": sorted(files, key=lambda row: row["path"]),
-        "fileCount": 32,
-        "payloadCount": 21,
-    }
+    return generate_proof_catalog.cache_content_manifest(manifest, ledger_outer)
 
 
 def acquire(manifest_path: Path, output_root: Path, work_root: Path) -> dict:
@@ -255,18 +267,19 @@ def acquire(manifest_path: Path, output_root: Path, work_root: Path) -> dict:
         os.link(first, destination)
         os.chmod(destination, 0o644)
         fetch_rows.append({"path": row["path"], "firstUrl": row["sourceUrl"], "secondUrl": row["sourceUrl"], "size": row["size"], "sha256": row["sha256"], "aliasComparison": False})
-    member_manifest = build_member_manifest(manifest)
+    _, zip_layout_manifest = build_member_manifests(manifest)
     archive_name = manifest["ledgerStatic"]["releaseName"]
     archive_path = payload_dir / archive_name
-    archive_sha256, archive_size = deterministic_zip(ledger_root, member_manifest, archive_path)
-    verify_zip(archive_path, member_manifest)
+    archive_sha256, archive_size = deterministic_zip(ledger_root, zip_layout_manifest, archive_path)
+    verify_zip(archive_path, zip_layout_manifest)
     ledger_outer = {"name": archive_name, "size": archive_size, "sha256": archive_sha256}
+    expect(
+        ledger_outer == {"name": archive_name, "size": manifest["ledgerStatic"]["archiveSize"], "sha256": manifest["ledgerStatic"]["archiveSha256"]},
+        "deterministic Ledger archive differs from the reviewed outer identity",
+    )
     content = cache_content_manifest(manifest, ledger_outer)
-    content_bytes = canonical_bytes(content)
-    generation = hashlib.sha256(content_bytes).hexdigest()
-    content["combinedManifestSha256"] = generation
-    # The generation excludes its own self-reference. Bootstrap recomputes it from this exact projection.
-    content["identityProjection"] = "all fields except combinedManifestSha256 and identityProjection"
+    content, generation = generate_proof_catalog.finalize_content_manifest(content)
+    expect(generation == manifest["cacheContract"]["expectedCombinedManifestSha256"], "combined generation differs from the reviewed Q8B admission identity")
     create_file_atomic(evidence_dir / "proof-cache-content-manifest-v1.json", canonical_bytes(content), 0o644)
     payload_rows = []
     for path in sorted(payload_dir.iterdir(), key=lambda value: value.name):
@@ -318,15 +331,17 @@ def verify_output(manifest_path: Path, output_root: Path) -> dict:
         validate_regular_file(path, "0644")
         digest, size = sha256_file(path)
         expect(size == row["size"] and digest == row["sha256"], f"SRS output mismatch: {path.name}")
-    member_manifest = build_member_manifest(manifest)
+    _, zip_layout_manifest = build_member_manifests(manifest)
     archive_path = payload_dir / manifest["ledgerStatic"]["releaseName"]
-    verify_zip(archive_path, member_manifest)
+    verify_zip(archive_path, zip_layout_manifest)
     archive_sha, archive_size = sha256_file(archive_path)
+    expect(archive_sha == manifest["ledgerStatic"]["archiveSha256"] and archive_size == manifest["ledgerStatic"]["archiveSize"], "Ledger archive outer identity mismatch")
     content = load_json(evidence_dir / "proof-cache-content-manifest-v1.json")
     claimed = content.pop("combinedManifestSha256")
     content.pop("identityProjection")
     actual = hashlib.sha256(canonical_bytes(content)).hexdigest()
     expect(actual == claimed, "combined content-manifest identity mismatch")
+    expect(claimed == manifest["cacheContract"]["expectedCombinedManifestSha256"], "combined content-manifest differs from reviewed admission identity")
     expect(all(row["outerSha256"] == archive_sha for row in content["files"] if row["kind"] == "ledger-static"), "Ledger outer digest binding mismatch")
     lineage = load_json(evidence_dir / "proof-data-lineage-v1.json")
     expect(lineage["combinedManifestSha256"] == claimed and lineage["payloadCount"] == 21 and len(lineage["payloads"]) == 21, "lineage count/generation mismatch")

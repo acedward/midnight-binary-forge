@@ -79,6 +79,51 @@ def inspect_reader(name: str, fixed_midnight_pp: str) -> dict:
     return {"name": name, "midnightPp": env["MIDNIGHT_PP"], "mountReadOnly": not mounts[0]["RW"], "mountType": mounts[0]["Type"]}
 
 
+def container_logs(name: str) -> tuple[str, str, str]:
+    result = run(["docker", "logs", name], check=False)
+    combined = result.stdout + "\n---stderr---\n" + result.stderr
+    return result.stdout, result.stderr, combined
+
+
+def inspect_image_identity(image_digest: str, expected_arch: str) -> dict:
+    reference = f"midnightntwrk/proof-server@{image_digest}"
+    item = json.loads(run(["docker", "image", "inspect", reference]).stdout)[0]
+    expect(item["Os"] == "linux" and item["Architecture"] == expected_arch, "rc.7 image OS/architecture differs from the native lane")
+    expect(reference in item.get("RepoDigests", []), "rc.7 local image identity is not bound to the reviewed repository digest")
+    return {
+        "repositoryDigest": reference,
+        "imageId": item["Id"],
+        "os": item["Os"],
+        "architecture": item["Architecture"],
+    }
+
+
+def static10_rejection_diagnostic(logs: str, state: str, negative: dict, image_identity: dict, observed_version: str) -> dict:
+    contract = negative["diagnosticContract"]
+    required = contract["requiredMissingPaths"]
+    observed = [path for path in required if path in logs]
+    expect(observed == required, "rc.7 rejection lacks every exact source-derived static-10 path diagnostic")
+    parts = state.split()
+    expect(len(parts) == 2 and parts[0] in {"exited", "dead"} and parts[1].isdigit() and int(parts[1]) != 0, "rc.7 negative must terminate non-zero after the static-10 diagnostic")
+    expect(observed_version == negative["version"], "rc.7 image version differs from the source-pinned negative contract")
+    evidence = {
+        "schemaVersion": "rc7-static10-rejection-diagnostic-v1",
+        "reason": contract["reason"],
+        "sourceCommit": negative["sourceCommit"],
+        "sourceFiles": contract["sourceFiles"],
+        "proofServerVersion": observed_version,
+        "requiresLedgerStaticSemver": negative["requiresLedgerStaticSemver"],
+        "cacheNamespace": negative["cacheNamespace"],
+        "requiredMissingPaths": required,
+        "observedMissingPaths": observed,
+        "containerState": state,
+        "image": image_identity,
+        "logSha256": hashlib.sha256(logs.encode()).hexdigest(),
+    }
+    evidence["canonicalSha256"] = hashlib.sha256(canonical_bytes(evidence)).hexdigest()
+    return evidence
+
+
 def start_reader(name: str, network: str, volume: str, image_digest: str, fixed_midnight_pp: str, port: int) -> None:
     run(
         [
@@ -98,6 +143,7 @@ def runtime_gate(candidate_root: Path, work_root: Path, os_name: str, arch: str,
     expect(os_name == "linux" and arch in {"amd64", "arm64"}, "proof-server runtime gate requires native Linux amd64/arm64")
     expect(candidate_root.is_dir() and work_root.is_dir() and not any(work_root.iterdir()), "candidate/work directory contract failed")
     manifest_path = candidate_root / "evidence/proof-cache-content-manifest-v1.json"
+    admission_path = ROOT / "catalog/proof-data/q8b-cache-admission-v1.json"
     payload_dir = candidate_root / "payloads"
     content = load_json(manifest_path)
     digest = content["combinedManifestSha256"]
@@ -106,10 +152,12 @@ def runtime_gate(candidate_root: Path, work_root: Path, os_name: str, arch: str,
     positive = proof_set["proofServerCompatibility"]["accepted"]
     negative = proof_set["proofServerCompatibility"]["rejectedStatic9"]
     expected_rc7 = negative["images"][f"linux/{arch}"]
+    expect(digest == proof_set["cacheContract"]["expectedCombinedManifestSha256"], "candidate generation differs from the reviewed Q8B contract")
     volume = f"q8b-proof-{run_key}-{arch}".lower().replace("_", "-")
     network = f"q8b-proof-{run_key}-{arch}-offline".lower().replace("_", "-")
     readers = [f"{volume}-plain", f"{volume}-experimental"]
     negative_name = f"{volume}-rc7-negative"
+    negative_probe_name = f"{volume}-rc7-version-probe"
     client_name = f"{volume}-client"
     created_volume = False
     created_network = False
@@ -129,6 +177,8 @@ def runtime_gate(candidate_root: Path, work_root: Path, os_name: str, arch: str,
             PYTHON_IMAGE,
             "python3", "/repo/scripts/proof_cache_bootstrap.py", "bootstrap",
             "--manifest", "/candidate/evidence/proof-cache-content-manifest-v1.json",
+            "--admission-contract", "/repo/catalog/proof-data/q8b-cache-admission-v1.json",
+            "--expected-combined-manifest-sha256", digest,
             "--payload-dir", "/candidate/payloads",
             "--parent", "/proof-params",
             "--readers-stopped",
@@ -175,15 +225,31 @@ def runtime_gate(candidate_root: Path, work_root: Path, os_name: str, arch: str,
         alternate["identityProjection"] = "all fields except combinedManifestSha256 and identityProjection"
         alternate_path = work_root / "alternate-content.json"
         create_file_atomic(alternate_path, canonical_bytes(alternate), 0o644)
+        alternate_admission = load_json(admission_path)
+        alternate_admission["selection"] = alternate["selection"]
+        alternate_admission["expectedCombinedManifestSha256"] = alternate_digest
+        alternate_admission["contentManifest"] = alternate
+        alternate_proof_set = dict(proof_set)
+        alternate_proof_set["setId"] = alternate["selection"]
+        alternate_proof_set["cacheContract"] = dict(alternate_proof_set["cacheContract"])
+        alternate_proof_set["cacheContract"]["expectedCombinedManifestSha256"] = alternate_digest
+        alternate_admission["proofSetSha256"] = hashlib.sha256(canonical_bytes(alternate_proof_set)).hexdigest()
+        create_file_atomic(work_root / "q8b-v1.json", canonical_bytes(alternate_proof_set), 0o644)
+        alternate_admission_path = work_root / "alternate-admission.json"
+        create_file_atomic(alternate_admission_path, canonical_bytes(alternate_admission), 0o644)
         alternate_command = [
             "docker", "run", "--rm",
             "--mount", f"type=bind,src={repo},dst=/repo,readonly",
             "--mount", f"type=bind,src={candidate},dst=/candidate,readonly",
             "--mount", f"type=bind,src={alternate_path.resolve()},dst=/alternate.json,readonly",
+            "--mount", f"type=bind,src={alternate_admission_path.resolve()},dst=/alternate-admission.json,readonly",
+            "--mount", f"type=bind,src={(work_root / 'q8b-v1.json').resolve()},dst=/q8b-v1.json,readonly",
             "--mount", f"type=volume,src={volume},dst=/proof-params",
             PYTHON_IMAGE,
             "python3", "/repo/scripts/proof_cache_bootstrap.py", "bootstrap",
-            "--manifest", "/alternate.json", "--payload-dir", "/candidate/payloads", "--parent", "/proof-params", "--readers-stopped",
+            "--manifest", "/alternate.json", "--admission-contract", "/alternate-admission.json",
+            "--expected-combined-manifest-sha256", alternate_digest,
+            "--payload-dir", "/candidate/payloads", "--parent", "/proof-params", "--readers-stopped",
             "--inject-failure", "pointer",
         ]
         failed_pointer = run(alternate_command, timeout=300, check=False)
@@ -244,6 +310,19 @@ def runtime_gate(candidate_root: Path, work_root: Path, os_name: str, arch: str,
             run(["docker", "rm", "--force", name], timeout=30)
 
         # The exact architecture-specific rc.7/static-10 consumer must not become ready on static-9.
+        probe_port = free_port()
+        run(
+            [
+                "docker", "run", "--detach", "--name", negative_probe_name, "--network", network,
+                "--env", f"PORT={probe_port}", "--env", "MIDNIGHT_PROOF_SERVER_NO_FETCH_PARAMS=true",
+                f"midnightntwrk/proof-server@{expected_rc7}",
+            ],
+            timeout=120,
+        )
+        negative_version, _ = wait_ready(client_name, negative_probe_name, probe_port)
+        expect(negative_version == negative["version"], "rc.7 no-fetch version probe drift")
+        image_identity = inspect_image_identity(expected_rc7, arch)
+        run(["docker", "rm", "--force", negative_probe_name], timeout=30)
         negative_port = free_port()
         start_reader(negative_name, network, volume, expected_rc7, fixed, negative_port)
         became_ready = False
@@ -260,10 +339,10 @@ def runtime_gate(candidate_root: Path, work_root: Path, os_name: str, arch: str,
             if state.startswith("exited") or state.startswith("dead"):
                 break
             time.sleep(1)
-        logs = run(["docker", "logs", negative_name], check=False).stdout
+        _, _, logs = container_logs(negative_name)
         expect(not became_ready, "rc.7/static-10 incorrectly accepted static-9")
         run(["docker", "rm", "--force", negative_name], timeout=30, check=False)
-        expect(any(token in logs for token in ("/10/", "zswap/10", "dust/10", "failed", "error", "Error", "connect", "resolve")) or state.startswith("exited"), "rc.7 negative did not expose a static-10/missing-origin rejection")
+        diagnostic = static10_rejection_diagnostic(logs, state, negative, image_identity, negative_version)
 
         result = {
             "schemaVersion": "proof-runtime-docker-result-v1",
@@ -272,13 +351,13 @@ def runtime_gate(candidate_root: Path, work_root: Path, os_name: str, arch: str,
             "volume": {"type": "named", "bootstrapMount": "read-write", "readerMount": "read-only", "combinedManifestSha256": digest, "fixedMidnightPp": fixed, "firstBootstrap": first_bootstrap, "secondBootstrap": second_bootstrap, "lockContention": "rejected", "sameDigestCorruption": "quarantined-and-repaired", "failedPointerSwapRetainedPrior": True, "stalePointerReactivated": True, "gcProtectedCurrentAndReferenced": True},
             "network": {"internal": True, "officialOriginReachable": False},
             "rc5": {"sourceCommit": positive["sourceCommit"], "readers": reader_evidence, "coldStart": "pass", "restart": "pass", "coveredOriginRequests": 0},
-            "rc7Negative": {"sourceCommit": negative["sourceCommit"], "imageDigest": expected_rc7, "publicMultiarchTag": False, "requiresLedgerStaticSemver": "10.0.0", "static9Accepted": False, "srsGenerationReusable": negative["mayReuseSrsGeneration"], "containerState": state, "logSha256": __import__("hashlib").sha256(logs.encode()).hexdigest()},
+            "rc7Negative": {"sourceCommit": negative["sourceCommit"], "imageDigest": expected_rc7, "publicMultiarchTag": False, "requiresLedgerStaticSemver": "10.0.0", "static9Accepted": False, "srsGenerationReusable": negative["mayReuseSrsGeneration"], "containerState": state, "diagnostic": diagnostic},
             "compactCacheDirectory": str(cache_copy / "generation"),
         }
         create_file_atomic(output, canonical_bytes(result), 0o644)
         return result
     finally:
-        for name in [*readers, negative_name, f"{volume}-lock-holder", client_name]:
+        for name in [*readers, negative_name, negative_probe_name, f"{volume}-lock-holder", client_name]:
             run(["docker", "rm", "--force", name], timeout=30, check=False)
         if created_network:
             run(["docker", "network", "rm", network], timeout=30, check=False)

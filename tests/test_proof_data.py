@@ -24,6 +24,7 @@ sys.path.insert(0, str(SCRIPTS))
 import generate_proof_catalog  # noqa: E402
 import proof_cache_bootstrap  # noqa: E402
 import proof_data_pipeline  # noqa: E402
+import proof_runtime_docker  # noqa: E402
 import validate_catalog  # noqa: E402
 import validate_stock_aa_manifest  # noqa: E402
 from forge_io import ForgeError, canonical_bytes  # noqa: E402
@@ -49,7 +50,7 @@ def write_json(path: Path, value: dict) -> None:
     path.write_bytes(canonical_bytes(value))
 
 
-def make_fixture(root: Path, salt: bytes = b"a") -> tuple[Path, Path, str]:
+def make_fixture(root: Path, salt: bytes = b"a") -> tuple[Path, Path, Path, str]:
     payloads = root / "payloads"
     parent = root / "proof-params"
     payloads.mkdir(parents=True)
@@ -62,7 +63,17 @@ def make_fixture(root: Path, salt: bytes = b"a") -> tuple[Path, Path, str]:
         path.write_bytes(data)
         path.chmod(0o644)
         digest = hashlib.sha256(data).hexdigest()
-        rows.append({"path": name, "kind": "srs", "k": k, "mode": "0644", "size": len(data), "sha256": digest, "generation": "fixture", "outerPayload": name, "outerSha256": digest})
+        is_k0 = k == 0
+        rows.append({
+            "path": name, "kind": "srs", "k": k, "mode": "0644", "size": len(data), "sha256": digest,
+            "generation": "fixture-provider" if is_k0 else "fixture-trusted",
+            "provenance": "ledger-provider-compatibility" if is_k0 else "trusted-setup-ceremony",
+            "sourceRepository": "fixture/provider" if is_k0 else "fixture/trusted",
+            "sourceCommit": "0" * 40 if is_k0 else "1" * 40,
+            "officialAlias": None if is_k0 else f"midnight-srs-2p{k}",
+            "rootPotSha256": None if is_k0 else "2" * 64,
+            "outerPayload": name, "outerSha256": digest,
+        })
     archive = payloads / "midnight-ledger-static-noarch-9.0.0.zip"
     ledger_data = {name: salt + b"-ledger-" + name.encode() for name in LEDGER_PATHS}
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
@@ -80,15 +91,21 @@ def make_fixture(root: Path, salt: bytes = b"a") -> tuple[Path, Path, str]:
     archive_digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     for name in LEDGER_PATHS:
         data = ledger_data[name]
-        rows.append({"path": name, "kind": "ledger-static", "mode": "0644", "size": len(data), "sha256": hashlib.sha256(data).hexdigest(), "ledgerStaticSemver": "9.0.0", "cacheNamespace": "9", "outerPayload": archive.name, "outerSha256": archive_digest})
+        rows.append({"path": name, "kind": "ledger-static", "mode": "0644", "size": len(data), "sha256": hashlib.sha256(data).hexdigest(), "ledgerStaticSemver": "9.0.0", "cacheNamespace": "9", "memberManifestSha256": "pending", "outerPayload": archive.name, "outerSha256": archive_digest})
+    ledger_rows = sorted((row for row in rows if row["kind"] == "ledger-static"), key=lambda row: row["path"])
+    semantic = {"schemaVersion": "ledger-static-member-manifest-v1", "members": [{"path": row["path"], "bytes": row["size"], "sha256": row["sha256"], "mode": row["mode"]} for row in ledger_rows]}
+    member_digest = hashlib.sha256(canonical_bytes(semantic) + b"\n").hexdigest()
+    for row in ledger_rows:
+        row["memberManifestSha256"] = member_digest
     content = {
         "schemaVersion": "proof-cache-content-manifest-v1",
         "canonicalization": "forge-canonical-json-v1",
         "selection": "fixture",
-        "srsGeneration": "fixture",
-        "ledgerStaticSemver": "9.0.0",
-        "cacheNamespace": "9",
-        "ledgerMemberManifestSha256": "1" * 64,
+        "srsGenerations": [
+            {"k": [0], "generation": "fixture-provider", "provenance": "ledger-provider-compatibility", "sourceRepository": "fixture/provider", "sourceCommit": "0" * 40, "rootPotSha256": None, "canonicalObjectSha256": rows[0]["sha256"]},
+            {"k": list(range(1, 20)), "generation": "fixture-trusted", "provenance": "trusted-setup-ceremony", "sourceRepository": "fixture/trusted", "sourceCommit": "1" * 40, "rootPotSha256": "2" * 64},
+        ],
+        "ledgerStatic": {"ledgerStaticSemver": "9.0.0", "cacheNamespace": "9", "memberManifestSha256": member_digest, "zipLayoutManifestSha256": "3" * 64, "outerPayload": archive.name, "outerSize": archive.stat().st_size, "outerSha256": archive_digest},
         "files": sorted(rows, key=lambda row: row["path"]),
         "fileCount": 32,
         "payloadCount": 21,
@@ -98,7 +115,11 @@ def make_fixture(root: Path, salt: bytes = b"a") -> tuple[Path, Path, str]:
     content["identityProjection"] = "all fields except combinedManifestSha256 and identityProjection"
     manifest = root / "content.json"
     write_json(manifest, content)
-    return manifest, payloads, digest
+    proof_set = {"schemaVersion": "proof-data-set-v1", "decision": "Q8=B", "setId": "fixture", "cacheContract": {"expectedCombinedManifestSha256": digest}}
+    write_json(root / "q8b-v1.json", proof_set)
+    admission = root / "admission.json"
+    write_json(admission, {"schemaVersion": "proof-cache-admission-v1", "canonicalization": "forge-canonical-json-v1", "selection": "fixture", "proofSetSha256": hashlib.sha256(canonical_bytes(proof_set)).hexdigest(), "expectedCombinedManifestSha256": digest, "contentManifest": content})
+    return manifest, admission, payloads, digest
 
 
 class ProofDataPolicyTest(unittest.TestCase):
@@ -197,14 +218,24 @@ class ProofDataPolicyTest(unittest.TestCase):
 
     def test_generated_catalog_is_canonical_and_all_components_validate(self) -> None:
         outputs = generate_proof_catalog.generated_files()
-        self.assertEqual(len(outputs), 23)
+        self.assertEqual(len(outputs), 25)
         for path, expected in outputs.items():
             self.assertEqual(path.read_bytes(), expected)
         manifest = json.loads((ROOT / "catalog/proof-data/q8b-v1.json").read_text())
         proof_data_pipeline.validate_manifest(manifest)
         self.assertEqual(manifest["counts"]["payloadCount"], 21)
         self.assertEqual([row["k"] for row in manifest["srs"]], list(range(20)))
-        self.assertEqual(manifest["ledgerStatic"]["memberManifestSha256"], "0417e65cbd336943aa98c0bed2153f30e175394dd4cf7209bec13376988f4ba8")
+        self.assertEqual(manifest["ledgerStatic"]["memberManifestSha256"], "9ba79d1d49d10465f46db247ffe5e4ae3f779ad06f07d1869169a427a907ac0c")
+        semantic = json.loads((ROOT / "catalog/proof-data/ledger-static-9-member-manifest.json").read_text())
+        self.assertEqual(semantic["schemaVersion"], "ledger-static-member-manifest-v1")
+        self.assertEqual(len(semantic["members"]), 12)
+        self.assertEqual(hashlib.sha256(canonical_bytes(semantic) + b"\n").hexdigest(), manifest["ledgerStatic"]["memberManifestSha256"])
+        content = json.loads((ROOT / "catalog/proof-data/q8b-cache-admission-v1.json").read_text())["contentManifest"]
+        self.assertNotIn("srsGeneration", content)
+        self.assertEqual(content["srsGenerations"][0]["k"], [0])
+        self.assertEqual(content["srsGenerations"][1]["k"], list(range(1, 20)))
+        self.assertIsNone(content["srsGenerations"][0]["rootPotSha256"])
+        self.assertEqual(content["srsGenerations"][1]["rootPotSha256"], generate_proof_catalog.ROOT_POT)
         for path in sorted((ROOT / "catalog/components").glob("midnight-*.json")):
             validate_catalog.validate_component(json.loads(path.read_text()))
 
@@ -232,17 +263,113 @@ class ProofDataPolicyTest(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ForgeError):
                 proof_data_pipeline.validate_manifest(value)
 
+    def test_bootstrap_requires_reviewed_admission_and_rejects_self_rehashed_substitutions(self) -> None:
+        with tempfile.TemporaryDirectory() as text:
+            root = Path(text)
+            manifest, admission_path, _, digest = make_fixture(root)
+            admission = json.loads(admission_path.read_text())
+            proof_set = json.loads((root / "q8b-v1.json").read_text())
+            original_content = json.loads(manifest.read_text())
+
+            with self.assertRaisesRegex(ForgeError, "expected generation"):
+                proof_cache_bootstrap.load_content(manifest, admission_path, "f" * 64)
+
+            self_rehashed = copy.deepcopy(original_content)
+            self_rehashed["selection"] = "foreign-self-rehashed"
+            projection = dict(self_rehashed)
+            projection.pop("combinedManifestSha256")
+            projection.pop("identityProjection")
+            self_rehashed_digest = hashlib.sha256(canonical_bytes(projection)).hexdigest()
+            self_rehashed["combinedManifestSha256"] = self_rehashed_digest
+            self_rehashed["identityProjection"] = "all fields except combinedManifestSha256 and identityProjection"
+            self_rehashed_path = root / "self-rehashed.json"
+            write_json(self_rehashed_path, self_rehashed)
+            with self.assertRaisesRegex(ForgeError, "admission contract"):
+                proof_cache_bootstrap.load_content(self_rehashed_path, admission_path, self_rehashed_digest)
+
+            def assert_rejected(mutator, pattern: str) -> None:
+                content = copy.deepcopy(original_content)
+                mutator(content)
+                projection = dict(content)
+                projection.pop("combinedManifestSha256")
+                projection.pop("identityProjection")
+                changed_digest = hashlib.sha256(canonical_bytes(projection)).hexdigest()
+                content["combinedManifestSha256"] = changed_digest
+                content["identityProjection"] = "all fields except combinedManifestSha256 and identityProjection"
+                changed_admission = copy.deepcopy(admission)
+                changed_admission["selection"] = content["selection"]
+                changed_admission["expectedCombinedManifestSha256"] = changed_digest
+                changed_admission["contentManifest"] = content
+                changed_proof_set = copy.deepcopy(proof_set)
+                changed_proof_set["cacheContract"]["expectedCombinedManifestSha256"] = changed_digest
+                changed_admission["proofSetSha256"] = hashlib.sha256(canonical_bytes(changed_proof_set)).hexdigest()
+                case_root = root / changed_digest
+                case_root.mkdir()
+                write_json(case_root / "q8b-v1.json", changed_proof_set)
+                changed_manifest_path = case_root / "content.json"
+                changed_admission_path = case_root / "admission.json"
+                write_json(changed_manifest_path, content)
+                write_json(changed_admission_path, changed_admission)
+                with self.assertRaisesRegex(ForgeError, pattern):
+                    proof_cache_bootstrap.load_content(changed_manifest_path, changed_admission_path, changed_digest)
+
+            def swap_k0_k19(content: dict) -> None:
+                by_path = {row["path"]: row for row in content["files"]}
+                first = copy.deepcopy(by_path["bls_midnight_2p0"])
+                last = copy.deepcopy(by_path["bls_midnight_2p19"])
+                for target, source in ((by_path["bls_midnight_2p0"], last), (by_path["bls_midnight_2p19"], first)):
+                    path = target["path"]
+                    target.clear()
+                    target.update(source)
+                    target["path"] = path
+
+            assert_rejected(swap_k0_k19, "K/path/outer|generation mapping")
+            assert_rejected(lambda content: content["srsGenerations"][1].update({"rootPotSha256": "e" * 64}), "rootPotSha256")
+            assert_rejected(lambda content: content["files"][0].update({"outerPayload": "foreign-srs"}), "K/path/outer")
+
+            def wrong_ledger_namespace(content: dict) -> None:
+                content["ledgerStatic"]["cacheNamespace"] = "10"
+                for row in content["files"]:
+                    if row["kind"] == "ledger-static":
+                        row["cacheNamespace"] = "10"
+
+            assert_rejected(wrong_ledger_namespace, "top-level identity")
+
+            def wrong_ledger_path(content: dict) -> None:
+                row = next(row for row in content["files"] if row["path"] == "dust/9/spend.bzkir")
+                row["path"] = "dust/9/foreign.bzkir"
+                content["files"].sort(key=lambda item: item["path"])
+
+            assert_rejected(wrong_ledger_path, "exact twelve")
+
+    def test_static10_negative_requires_specific_source_pinned_reason(self) -> None:
+        negative = json.loads((ROOT / "catalog/proof-data/q8b-v1.json").read_text())["proofServerCompatibility"]["rejectedStatic9"]
+        image = {
+            "repositoryDigest": f"midnightntwrk/proof-server@{negative['images']['linux/amd64']}",
+            "imageId": "sha256:" + "a" * 64,
+            "os": "linux",
+            "architecture": "amd64",
+        }
+        with self.assertRaisesRegex(ForgeError, "source-derived"):
+            proof_runtime_docker.static10_rejection_diagnostic("unrelated error", "exited 1", negative, image, "9.0.0-rc.7")
+        with self.assertRaisesRegex(ForgeError, "source-derived"):
+            proof_runtime_docker.static10_rejection_diagnostic("zswap/10/spend.prover", "exited 1", negative, image, "9.0.0-rc.7")
+        logs = "\n".join(f"failed to fetch https://srs.midnight.network/{path}" for path in negative["diagnosticContract"]["requiredMissingPaths"])
+        evidence = proof_runtime_docker.static10_rejection_diagnostic(logs, "exited 1", negative, image, "9.0.0-rc.7")
+        self.assertEqual(evidence["observedMissingPaths"], negative["diagnosticContract"]["requiredMissingPaths"])
+        self.assertEqual(len(evidence["canonicalSha256"]), 64)
+
     def test_bootstrap_atomic_noop_repair_pointer_failure_and_gc(self) -> None:
         with tempfile.TemporaryDirectory() as text:
             root = Path(text)
-            manifest, payloads, digest = make_fixture(root / "first")
+            manifest, admission, payloads, digest = make_fixture(root / "first")
             parent = manifest.parent / "proof-params"
-            activated = proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None)
+            activated = proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None)
             self.assertEqual(activated, digest)
-            fixed = proof_cache_bootstrap.verify_active(manifest, parent)
+            fixed = proof_cache_bootstrap.verify_active(manifest, admission, digest, parent)
             self.assertEqual(fixed, str(parent / "generations" / digest))
             inode = (parent / "generations" / digest).stat().st_ino
-            self.assertEqual(proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None), digest)
+            self.assertEqual(proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None), digest)
             self.assertEqual((parent / "generations" / digest).stat().st_ino, inode)
 
             # Same-digest corruption is quarantined and repaired, never changed in place.
@@ -251,21 +378,21 @@ class ProofDataPolicyTest(unittest.TestCase):
             corrupt.chmod(0o644)
             corrupt_digest = hashlib.sha256(corrupt.read_bytes()).hexdigest()
             with self.assertRaisesRegex(ForgeError, "pointer"):
-                proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, "pointer")
+                proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, "pointer")
             self.assertEqual(os.readlink(parent / "current"), f"generations/{digest}")
             self.assertEqual(hashlib.sha256(corrupt.read_bytes()).hexdigest(), corrupt_digest)
-            proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None)
+            proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None)
             self.assertNotEqual((parent / "generations" / digest).stat().st_ino, inode)
             self.assertTrue(any((parent / "quarantine").iterdir()))
-            proof_cache_bootstrap.verify_active(manifest, parent)
+            proof_cache_bootstrap.verify_active(manifest, admission, digest, parent)
 
             # A fully staged new generation plus failed pointer swap retains the old pointer.
             second_root = root / "second"
-            manifest2, payloads2, digest2 = make_fixture(second_root, b"b")
+            manifest2, admission2, payloads2, digest2 = make_fixture(second_root, b"b")
             with self.assertRaisesRegex(ForgeError, "pointer"):
-                proof_cache_bootstrap.bootstrap(manifest2, payloads2, parent, True, False, "pointer")
+                proof_cache_bootstrap.bootstrap(manifest2, admission2, digest2, payloads2, parent, True, False, "pointer")
             self.assertEqual(os.readlink(parent / "current"), f"generations/{digest}")
-            proof_cache_bootstrap.verify_active(manifest, parent)
+            proof_cache_bootstrap.verify_active(manifest, admission, digest, parent)
             self.assertTrue((parent / "generations" / digest2).is_dir())
             self.assertEqual(proof_cache_bootstrap.gc(parent, {digest2}, True, False), [])
             self.assertEqual(proof_cache_bootstrap.gc(parent, set(), True, False), [digest2])
@@ -274,23 +401,23 @@ class ProofDataPolicyTest(unittest.TestCase):
     def test_bootstrap_failure_corruption_missing_extra_modes_and_lock_contention_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as text:
             root = Path(text)
-            manifest, payloads, digest = make_fixture(root)
+            manifest, admission, payloads, digest = make_fixture(root)
             parent = root / "proof-params"
-            proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None)
+            proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None)
             prior = os.readlink(parent / "current")
 
             with self.assertRaisesRegex(ForgeError, "readers stopped"):
-                proof_cache_bootstrap.bootstrap(manifest, payloads, parent, False, False, None)
+                proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, False, False, None)
             with self.assertRaisesRegex(ForgeError, "injected failure"):
                 # Force a rebuild by corrupting the installed tree, then fail after staged verification.
                 target = parent / prior / "bls_midnight_2p0"
                 target.write_bytes(b"bad")
                 target.chmod(0o644)
-                proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, "after-verify")
+                proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, "after-verify")
             self.assertEqual(os.readlink(parent / "current"), prior)
             # The prior bytes are corrupt but were not partially overwritten; a normal repair restores them.
-            proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None)
-            proof_cache_bootstrap.verify_active(manifest, parent)
+            proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None)
+            proof_cache_bootstrap.verify_active(manifest, admission, digest, parent)
 
             cases = []
             missing = root / "missing"
@@ -303,7 +430,7 @@ class ProofDataPolicyTest(unittest.TestCase):
             with self.assertRaisesRegex(ForgeError, cases[-1]):
                 # Corrupt installed tree so payload validation is reached.
                 (parent / prior / "bls_midnight_2p0").write_bytes(b"bad")
-                proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None)
+                proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None)
             for path in payloads.iterdir():
                 path.unlink()
             for path in missing.iterdir():
@@ -312,24 +439,24 @@ class ProofDataPolicyTest(unittest.TestCase):
             extra.write_bytes(b"x")
             extra.chmod(0o644)
             with self.assertRaisesRegex(ForgeError, "differs"):
-                proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None)
+                proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None)
             extra.unlink()
             (payloads / "bls_midnight_2p0").chmod(0o600)
             with self.assertRaisesRegex(ForgeError, "mode mismatch"):
-                proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None)
+                proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None)
             (payloads / "bls_midnight_2p0").chmod(0o644)
 
             lock_stream = proof_cache_bootstrap.acquire_lock(parent, False)
             try:
                 with self.assertRaisesRegex(ForgeError, "lock is held"):
-                    proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, True, None)
+                    proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, True, None)
             finally:
                 lock_stream.close()
 
     def test_archive_traversal_link_and_alias_substitution_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as text:
             root = Path(text)
-            manifest, payloads, _ = make_fixture(root)
+            manifest, admission, payloads, digest = make_fixture(root)
             parent = root / "proof-params"
             archive = payloads / "midnight-ledger-static-noarch-9.0.0.zip"
             content = json.loads(manifest.read_text())
@@ -350,7 +477,7 @@ class ProofDataPolicyTest(unittest.TestCase):
 
             rebind_archive(lambda output: output.writestr("../escape", b"x"))
             with self.assertRaises(ForgeError):
-                proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None)
+                proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None)
 
             def link_archive(output: zipfile.ZipFile) -> None:
                 info = zipfile.ZipInfo("dust/9/spend.bzkir")
@@ -360,7 +487,7 @@ class ProofDataPolicyTest(unittest.TestCase):
 
             rebind_archive(link_archive)
             with self.assertRaises(ForgeError):
-                proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None)
+                proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None)
 
             # An outer alias change cannot shadow the literal payload selection.
             original = json.loads(manifest.read_text())
@@ -370,8 +497,8 @@ class ProofDataPolicyTest(unittest.TestCase):
             projection.pop("identityProjection")
             original["combinedManifestSha256"] = hashlib.sha256(canonical_bytes(projection)).hexdigest()
             write_json(manifest, original)
-            with self.assertRaisesRegex(ForgeError, "payload directory differs"):
-                proof_cache_bootstrap.bootstrap(manifest, payloads, parent, True, False, None)
+            with self.assertRaisesRegex(ForgeError, "expected generation|admission contract"):
+                proof_cache_bootstrap.bootstrap(manifest, admission, digest, payloads, parent, True, False, None)
 
 
 if __name__ == "__main__":
