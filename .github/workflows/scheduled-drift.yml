@@ -1,0 +1,25 @@
+name: Read-only upstream and policy drift
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 8 * * 2'
+
+permissions:
+  contents: read
+
+jobs:
+  policy-drift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Revalidate pins, schemas, and read-only workflow policy
+        run: |
+          python3 -m pip install --requirement requirements-ci.txt
+          python3 scripts/validate_catalog.py all --root .
+          python3 scripts/check_workflow_policy.py
+          python3 scripts/check_upstream_drift.py

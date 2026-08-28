@@ -1,0 +1,162 @@
+{
+  "schemaVersion": "component-v1",
+  "componentId": "midnight-ledger-static-9.0.0",
+  "artifactKind": "proof-data",
+  "family": "midnight-ledger-static",
+  "operation": "assemble-data",
+  "source": {
+    "repository": "midnightntwrk/midnight-ledger",
+    "commitSha": "7a89f45d29792be7e09ca5eb246f1e69f0b2a179"
+  },
+  "destination": {
+    "repository": "effectstream/binaries",
+    "tag": "0.3.120"
+  },
+  "distributionTier": "development-only",
+  "releaseMutability": "mutable-warehouse",
+  "license": {
+    "spdx": "Apache-2.0",
+    "evidence": [
+      {
+        "url": "https://github.com/midnightntwrk/midnight-ledger/blob/7a89f45d29792be7e09ca5eb246f1e69f0b2a179/LICENSE",
+        "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+      }
+    ],
+    "perBlobLicenseAvailable": false
+  },
+  "naming": {
+    "outerTemplate": "midnight-ledger-static-noarch-9.0.0.zip",
+    "container": "zip",
+    "appendOnly": true,
+    "correctionTemplate": "midnight-ledger-static-noarch-9.0.0-manifest-sha256-{memberManifestSha256}.zip",
+    "members": [
+      {
+        "path": "dust/9/spend.bzkir",
+        "type": "file",
+        "mode": "0644",
+        "size": 2555,
+        "sha256": "904181287e75b0fb596ba5fcc116c882ee5d28e3115304c93ebd913722ce5841"
+      },
+      {
+        "path": "dust/9/spend.prover",
+        "type": "file",
+        "mode": "0644",
+        "size": 2175671,
+        "sha256": "996602da7ca386284e656c78ea03e55bffdba29475e6a67965c50de05e13efc2"
+      },
+      {
+        "path": "dust/9/spend.verifier",
+        "type": "file",
+        "mode": "0644",
+        "size": 1351,
+        "sha256": "3f1569ebcab0655c5c145b28947c74edc4e3f5c6b276e4404b661cf0905b49d3"
+      },
+      {
+        "path": "zswap/9/output.bzkir",
+        "type": "file",
+        "mode": "0644",
+        "size": 494,
+        "sha256": "91dc8b401dd8385e8d29eaac018c70b578505f48c7952452ef319bc397fa1f1b"
+      },
+      {
+        "path": "zswap/9/output.prover",
+        "type": "file",
+        "mode": "0644",
+        "size": 5730182,
+        "sha256": "d992b04f13c3fd432f55fb8bfe6466d87bc181f1a2acf233ec228030bbdd4ed8"
+      },
+      {
+        "path": "zswap/9/output.verifier",
+        "type": "file",
+        "mode": "0644",
+        "size": 2311,
+        "sha256": "72e8074856f2f5c504ade25a86a2b8902c64aeb9497c4c8e6b26dea842a0ab08"
+      },
+      {
+        "path": "zswap/9/sign.bzkir",
+        "type": "file",
+        "mode": "0644",
+        "size": 114,
+        "sha256": "37ea2094516e145a738126307cf92bd293f7cb524b1ccd49fa6f3225a9ec3a50"
+      },
+      {
+        "path": "zswap/9/sign.prover",
+        "type": "file",
+        "mode": "0644",
+        "size": 2814823,
+        "sha256": "fe7268dd2bdd107f862f881ac3c5bc71a6df77ce80bfed51cf71514648e660e0"
+      },
+      {
+        "path": "zswap/9/sign.verifier",
+        "type": "file",
+        "mode": "0644",
+        "size": 2023,
+        "sha256": "e39a727caa0de167e6dd6122a9e3b758fecf48f9093ab77c0309648de8ce07e1"
+      },
+      {
+        "path": "zswap/9/spend.bzkir",
+        "type": "file",
+        "mode": "0644",
+        "size": 1294,
+        "sha256": "7cb5bbcf67cb212a3336fb439a77e8f32f0aa8a56185c8e1247d6cbfc7300205"
+      },
+      {
+        "path": "zswap/9/spend.prover",
+        "type": "file",
+        "mode": "0644",
+        "size": 11020001,
+        "sha256": "19d234b5c68b7212ad6b0ec9334a95594748154128f3704eb576bcc843cc5c45"
+      },
+      {
+        "path": "zswap/9/spend.verifier",
+        "type": "file",
+        "mode": "0644",
+        "size": 2311,
+        "sha256": "544554effd7ae9fb9063be52a9ec2a986756301071fcd97bb4598fb45a335658"
+      }
+    ],
+    "limits": {
+      "maxCompressedBytes": 1048576,
+      "maxExpandedBytes": 2097152,
+      "maxMembers": 32,
+      "maxExpansionRatio": 20
+    }
+  },
+  "install": {
+    "mode": "0644",
+    "pathTemplate": "{MIDNIGHT_PP}"
+  },
+  "platform": "noarch",
+  "compatibility": {
+    "kind": "ledger-static",
+    "ledgerStaticSemver": "9.0.0",
+    "cacheNamespace": "9",
+    "memberManifestSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+    "ledgerStaticRevision": "manifest-sha256:9999999999999999999999999999999999999999999999999999999999999999",
+    "exactConsumers": [
+      {
+        "proofServerVersion": "9.0.0-rc.5",
+        "sourceCommit": "7a89f45d29792be7e09ca5eb246f1e69f0b2a179",
+        "imageDigests": {
+          "plain": "sha256:d96a4d0f3f0f10f82698288443f2873a32fed180eb8f93c0bae83572c0a187a9"
+        },
+        "ledgerStaticSemver": "9.0.0",
+        "cacheNamespace": "9"
+      }
+    ]
+  },
+  "signing": null,
+  "lineageManifest": {
+    "required": true,
+    "memberDigestsRequired": true
+  },
+  "validation": {
+    "probes": [
+      "sha256",
+      "archive-safety",
+      "member-contract",
+      "proof-compatibility",
+      "member-manifest"
+    ]
+  }
+}

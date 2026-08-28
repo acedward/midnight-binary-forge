@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "canonical-json-v1-test-vectors",
+  "vectors": [
+    { "name": "sorted-keys-and-integers", "value": { "z": 0, "a": -12, "m": true }, "utf8Hex": "7b2261223a2d31322c226d223a747275652c227a223a307d" },
+    { "name": "controls-and-escaping", "value": "\u0000\b\t\n\f\r\u001f\\\"/", "utf8Hex": "225c75303030305c625c745c6e5c665c725c75303031665c5c5c222f22" },
+    { "name": "unicode-scalars", "value": "España 🚀", "utf8Hex": "2245737061c3b16120f09f9a8022" },
+    { "name": "alternate-source-escape-normalizes", "jsonSource": "\"\\u0061\"", "utf8Hex": "226122" }
+  ]
+}

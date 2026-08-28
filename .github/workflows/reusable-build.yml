@@ -1,0 +1,104 @@
+name: Reusable native build boundary
+
+on:
+  workflow_call:
+    inputs:
+      component-path:
+        required: true
+        type: string
+      expected-os:
+        required: true
+        type: string
+      expected-arch:
+        required: true
+        type: string
+      runner-label:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  linux-amd64:
+    if: ${{ inputs.runner-label == 'ubuntu-24.04' && inputs.expected-os == 'linux' && inputs.expected-arch == 'amd64' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Prove native runner and validate component
+        env:
+          COMPONENT_PATH: ${{ inputs.component-path }}
+        run: |
+          case "$COMPONENT_PATH" in catalog/components/*.json) ;; *) exit 2 ;; esac
+          python3 scripts/check_runner_capability.py --runner-label ubuntu-24.04 --expected-os linux --expected-arch amd64 --require-tool git --min-free-gib 2
+          python3 -m pip install --requirement requirements-ci.txt
+          python3 scripts/validate_catalog.py component "$COMPONENT_PATH"
+          echo 'Native build execution is added by the owning component phase.'
+
+  linux-arm64:
+    if: ${{ inputs.runner-label == 'ubuntu-24.04-arm' && inputs.expected-os == 'linux' && inputs.expected-arch == 'arm64' }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Prove native runner and validate component
+        env:
+          COMPONENT_PATH: ${{ inputs.component-path }}
+        run: |
+          case "$COMPONENT_PATH" in catalog/components/*.json) ;; *) exit 2 ;; esac
+          python3 scripts/check_runner_capability.py --runner-label ubuntu-24.04-arm --expected-os linux --expected-arch arm64 --require-tool git --min-free-gib 2
+          python3 -m pip install --requirement requirements-ci.txt
+          python3 scripts/validate_catalog.py component "$COMPONENT_PATH"
+          echo 'Native build execution is added by the owning component phase.'
+
+  macos-arm64:
+    if: ${{ inputs.runner-label == 'macos-15' && inputs.expected-os == 'macos' && inputs.expected-arch == 'arm64' }}
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Prove native runner and validate component
+        env:
+          COMPONENT_PATH: ${{ inputs.component-path }}
+        run: |
+          case "$COMPONENT_PATH" in catalog/components/*.json) ;; *) exit 2 ;; esac
+          python3 scripts/check_runner_capability.py --runner-label macos-15 --expected-os macos --expected-arch arm64 --require-tool git --min-free-gib 2
+          python3 -m pip install --requirement requirements-ci.txt
+          python3 scripts/validate_catalog.py component "$COMPONENT_PATH"
+          echo 'Native build execution is added by the owning component phase.'
+
+  macos-amd64:
+    if: ${{ inputs.runner-label == 'macos-15-intel' && inputs.expected-os == 'macos' && inputs.expected-arch == 'amd64' }}
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Prove native runner and validate component
+        env:
+          COMPONENT_PATH: ${{ inputs.component-path }}
+        run: |
+          case "$COMPONENT_PATH" in catalog/components/*.json) ;; *) exit 2 ;; esac
+          python3 scripts/check_runner_capability.py --runner-label macos-15-intel --expected-os macos --expected-arch amd64 --require-tool git --min-free-gib 2
+          python3 -m pip install --requirement requirements-ci.txt
+          python3 scripts/validate_catalog.py component "$COMPONENT_PATH"
+          echo 'Native build execution is added by the owning component phase.'
+
+  reject-fallback:
+    if: ${{ !((inputs.runner-label == 'ubuntu-24.04' && inputs.expected-os == 'linux' && inputs.expected-arch == 'amd64') || (inputs.runner-label == 'ubuntu-24.04-arm' && inputs.expected-os == 'linux' && inputs.expected-arch == 'arm64') || (inputs.runner-label == 'macos-15' && inputs.expected-os == 'macos' && inputs.expected-arch == 'arm64') || (inputs.runner-label == 'macos-15-intel' && inputs.expected-os == 'macos' && inputs.expected-arch == 'amd64')) }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Reject an unapproved runner/target mapping
+        run: exit 2

@@ -1,0 +1,5 @@
+{
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "promotion-envelope-fixture-1.json",
+  "set": { "path": "/claims/issuer/untrusted", "value": "accepted" },
+  "expectedError": "issuer has unexpected or missing fields"
+}

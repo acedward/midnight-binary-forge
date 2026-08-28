@@ -1,0 +1,5 @@
+{
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "promotion-envelope-fixture-1.json",
+  "set": { "path": "/attestation/predicateType", "value": "https://attacker.invalid/predicate" },
+  "expectedError": "unexpected attestation predicate type"
+}

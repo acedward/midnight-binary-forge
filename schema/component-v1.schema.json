@@ -1,0 +1,379 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/acedward/midnight-binary-forge/schema/component-v1.schema.json",
+  "title": "Midnight binary forge component v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "componentId",
+    "artifactKind",
+    "family",
+    "operation",
+    "source",
+    "destination",
+    "distributionTier",
+    "releaseMutability",
+    "license",
+    "naming",
+    "install",
+    "validation"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "component-v1" },
+    "componentId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$" },
+    "artifactKind": { "enum": ["software", "proof-data"] },
+    "family": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,63}$" },
+    "version": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "operation": {
+      "enum": ["build", "identity-mirror", "rename-only", "repackage", "assemble-data"]
+    },
+    "source": { "$ref": "#/$defs/sourceIdentity" },
+    "destination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": { "const": "effectstream/binaries" },
+        "tag": { "const": "0.3.120" }
+      }
+    },
+    "distributionTier": { "const": "development-only" },
+    "releaseMutability": { "const": "mutable-warehouse" },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spdx", "evidence"],
+      "properties": {
+        "spdx": { "type": "string", "pattern": "^[A-Za-z0-9.+-]+$" },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/immutableEvidence" }
+        },
+        "redistributionStatement": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "perBlobLicenseAvailable": { "type": "boolean" }
+      }
+    },
+    "naming": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outerTemplate", "container", "appendOnly"],
+      "properties": {
+        "outerTemplate": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "container": { "enum": ["raw", "zip", "tar.gz"] },
+        "appendOnly": { "const": true },
+        "rawName": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+        "correctionTemplate": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "members": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/memberContract" }
+        },
+        "limits": { "$ref": "#/$defs/archiveLimits" }
+      }
+    },
+    "install": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["0644", "0755"] },
+        "pathTemplate": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "alias": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$" }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nativeTarget" }
+    },
+    "platform": { "const": "noarch" },
+    "compatibility": { "$ref": "#/$defs/compatibility" },
+    "signing": { "$ref": "#/$defs/signing" },
+    "sbom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formats"],
+      "properties": {
+        "formats": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["spdx-json", "cyclonedx-json"] }
+        }
+      }
+    },
+    "lineageManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "memberDigestsRequired"],
+      "properties": {
+        "required": { "const": true },
+        "memberDigestsRequired": { "const": true }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["probes"],
+      "properties": {
+        "probes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "sha256",
+              "size",
+              "archive-safety",
+              "member-contract",
+              "native-architecture",
+              "native-linkage",
+              "version",
+              "help",
+              "runtime-smoke",
+              "raw-name",
+              "raw-mode",
+              "proof-alias",
+              "proof-compatibility",
+              "member-manifest"
+            ]
+          }
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "artifactKind": { "const": "software" } }, "required": ["artifactKind"] },
+      "then": {
+        "required": ["version", "targets", "compatibility", "signing", "sbom"],
+        "properties": {
+          "operation": { "enum": ["build", "identity-mirror", "rename-only", "repackage"] },
+          "install": { "properties": { "mode": { "const": "0755" } } }
+        },
+        "not": { "anyOf": [{ "required": ["platform"] }, { "required": ["lineageManifest"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "artifactKind": { "const": "proof-data" } }, "required": ["artifactKind"] },
+      "then": {
+        "required": ["platform", "compatibility", "lineageManifest"],
+        "properties": {
+          "operation": { "enum": ["identity-mirror", "rename-only", "assemble-data"] },
+          "install": { "properties": { "mode": { "const": "0644" } } },
+          "signing": { "type": "null" }
+        },
+        "not": { "anyOf": [{ "required": ["targets"] }, { "required": ["sbom"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "family": { "const": "compactc" } }, "required": ["family"] },
+      "then": false
+    },
+    {
+      "if": { "properties": { "naming": { "properties": { "container": { "const": "raw" } } } } },
+      "then": {
+        "properties": {
+          "naming": { "required": ["rawName"], "not": { "required": ["members"] } }
+        }
+      },
+      "else": {
+        "properties": {
+          "naming": { "required": ["members", "limits"] }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "immutableEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "sha256"],
+      "properties": {
+        "url": { "type": "string", "pattern": "^https://" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "sourceIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commitSha"],
+      "properties": {
+        "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        "commitSha": { "$ref": "#/$defs/gitSha" },
+        "treeSha": { "$ref": "#/$defs/gitSha" },
+        "tag": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "asset": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "name", "url", "size", "sha256"],
+          "properties": {
+            "id": { "type": "integer", "minimum": 1 },
+            "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "url": { "type": "string", "pattern": "^https://" },
+            "size": { "type": "integer", "minimum": 1 },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "object": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url", "size", "sha256"],
+          "properties": {
+            "url": { "type": "string", "pattern": "^https://" },
+            "size": { "type": "integer", "minimum": 1 },
+            "sha256": { "$ref": "#/$defs/sha256" },
+            "sourcePath": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "officialName": { "type": "string", "minLength": 1, "maxLength": 256 }
+          }
+        },
+        "lockedDependencies": { "type": "boolean" },
+        "toolchain": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "toolchainDigest": { "$ref": "#/$defs/sha256" },
+        "buildFlags": { "type": "array", "items": { "type": "string", "maxLength": 512 } }
+      }
+    },
+    "nativeTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "arch", "tier", "runner"],
+      "properties": {
+        "os": { "enum": ["linux", "macos"] },
+        "arch": { "enum": ["amd64", "arm64"] },
+        "tier": { "enum": ["required", "desired", "optional"] },
+        "runner": { "enum": ["ubuntu-24.04", "ubuntu-24.04-arm", "macos-15", "macos-15-intel"] },
+        "native": { "const": true }
+      }
+    },
+    "memberContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "type", "mode"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$" },
+        "type": { "enum": ["file", "directory"] },
+        "mode": { "enum": ["0644", "0755"] },
+        "size": { "type": "integer", "minimum": 0 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "archiveLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxCompressedBytes", "maxExpandedBytes", "maxMembers", "maxExpansionRatio"],
+      "properties": {
+        "maxCompressedBytes": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "maxExpandedBytes": { "type": "integer", "minimum": 1, "maximum": 8589934592 },
+        "maxMembers": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "maxExpansionRatio": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 }
+      }
+    },
+    "exactConsumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proofServerVersion", "sourceCommit", "imageDigests", "ledgerStaticSemver", "cacheNamespace"],
+      "properties": {
+        "proofServerVersion": { "type": "string", "minLength": 1 },
+        "sourceCommit": { "$ref": "#/$defs/gitSha" },
+        "imageDigests": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "patternProperties": {
+            "^(linux/amd64|linux/arm64|plain|experimental)$": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          }
+        },
+        "ledgerStaticSemver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "cacheNamespace": { "type": "string", "pattern": "^[0-9]+$" }
+      }
+    },
+    "compatibility": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "runtime"],
+          "properties": {
+            "kind": { "const": "software-runtime" },
+            "runtime": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "probes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "k", "srsGeneration", "installedAlias", "exactConsumers"],
+          "properties": {
+            "kind": { "const": "srs" },
+            "k": { "type": "integer", "minimum": 0, "maximum": 19 },
+            "srsGeneration": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "officialAlias": { "type": ["string", "null"], "maxLength": 256 },
+            "installedAlias": { "type": "string", "pattern": "^bls_midnight_2p(?:[0-9]|1[0-9])$" },
+            "rootPotSha256": { "$ref": "#/$defs/sha256" },
+            "exactConsumers": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/exactConsumer" } }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "ledgerStaticSemver",
+            "cacheNamespace",
+            "memberManifestSha256",
+            "exactConsumers"
+          ],
+          "properties": {
+            "kind": { "const": "ledger-static" },
+            "ledgerStaticSemver": { "const": "9.0.0" },
+            "cacheNamespace": { "const": "9" },
+            "memberManifestSha256": { "$ref": "#/$defs/sha256" },
+            "ledgerStaticRevision": { "type": "string", "pattern": "^manifest-sha256:[0-9a-f]{64}$" },
+            "exactConsumers": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/exactConsumer" } }
+          }
+        }
+      ]
+    },
+    "signing": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["applicability", "distributionSigningState"],
+          "properties": {
+            "applicability": { "enum": ["not-applicable", "macos"] },
+            "distributionSigningState": {
+              "enum": [
+                "NOT_APPLICABLE",
+                "UNSIGNED_DEVELOPMENT_ONLY",
+                "DEVELOPER_ID_SIGNED_NOT_NOTARIZED",
+                "DEVELOPER_ID_SIGNED_NOTARIZED_ONLINE_TICKET"
+              ]
+            },
+            "codeSignatureKind": { "enum": ["none", "linker-adhoc", "developer-id"] },
+            "cdHash": { "type": ["string", "null"], "pattern": "^[0-9A-Fa-f]+$" },
+            "authorities": { "type": "array", "items": { "type": "string" } },
+            "teamId": { "type": ["string", "null"], "maxLength": 64 },
+            "hardenedRuntime": { "type": ["boolean", "null"] },
+            "strictVerification": { "type": ["boolean", "null"] }
+          }
+        }
+      ]
+    }
+  }
+}

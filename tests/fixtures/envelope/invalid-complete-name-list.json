@@ -1,0 +1,5 @@
+{
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "promotion-envelope-fixture-1.json",
+  "set": { "path": "/claims/completeAssetNames/0", "value": "foreign.bin" },
+  "expectedError": "complete candidate asset names mismatch"
+}

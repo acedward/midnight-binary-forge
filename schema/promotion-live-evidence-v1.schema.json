@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/acedward/midnight-binary-forge/schema/promotion-live-evidence-v1.schema.json",
+  "title": "Promotion envelope live API evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "capturedAt", "repository", "protectedRef", "workflowFile", "run", "stagingArtifact", "release", "releaseAssets"],
+  "properties": {
+    "schemaVersion": { "const": "promotion-live-evidence-v1" },
+    "capturedAt": { "type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+    "repository": {
+      "type": "object", "additionalProperties": false,
+      "required": ["fullName", "id", "nodeId"],
+      "properties": { "fullName": { "const": "acedward/midnight-binary-forge" }, "id": { "const": 1349127482 }, "nodeId": { "const": "R_kgDOUGoNOg" } }
+    },
+    "protectedRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ref", "commitSha", "protected"],
+      "properties": { "ref": { "const": "refs/heads/main" }, "commitSha": { "$ref": "#/$defs/gitSha" }, "protected": { "const": true } }
+    },
+    "workflowFile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "commitSha", "blobSha"],
+      "properties": { "path": { "const": ".github/workflows/candidate.yml" }, "commitSha": { "$ref": "#/$defs/gitSha" }, "blobSha": { "$ref": "#/$defs/gitSha" } }
+    },
+    "run": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "attempt", "repository", "workflowPath", "event", "headSha", "headRef", "status", "conclusion"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 }, "attempt": { "type": "integer", "minimum": 1 },
+        "repository": { "const": "acedward/midnight-binary-forge" }, "workflowPath": { "const": ".github/workflows/candidate.yml" },
+        "event": { "const": "workflow_dispatch" }, "headSha": { "$ref": "#/$defs/gitSha" }, "headRef": { "const": "main" },
+        "status": { "const": "completed" }, "conclusion": { "const": "success" }
+      }
+    },
+    "stagingArtifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "runId", "runAttempt", "name", "archiveSha256", "expired", "expiresAt"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 }, "runId": { "type": "integer", "minimum": 1 }, "runAttempt": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "pattern": "^verified-content-[a-z0-9][a-z0-9._-]{2,127}-[0-9a-f]{64}$" },
+        "archiveSha256": { "$ref": "#/$defs/sha256" }, "expired": { "type": "boolean" }, "expiresAt": { "type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+      }
+    },
+    "release": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "nodeId", "repository", "tag", "targetCommitish", "url", "draft", "prerelease", "immutable"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 }, "nodeId": { "type": "string", "pattern": "^RE_[A-Za-z0-9_-]+$" },
+        "repository": { "const": "acedward/midnight-binary-forge" }, "tag": { "type": "string", "pattern": "^forge-[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[1-9][0-9]*$" },
+        "targetCommitish": { "$ref": "#/$defs/gitSha" }, "url": { "type": "string", "pattern": "^https://github\\.com/acedward/midnight-binary-forge/releases/tag/forge-" },
+        "draft": { "const": false }, "prerelease": { "const": false }, "immutable": { "const": true }
+      }
+    },
+    "releaseAssets": {
+      "type": "array", "minItems": 3, "maxItems": 1000,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["name", "size", "sha256"],
+        "properties": { "name": { "$ref": "#/$defs/safeName" }, "size": { "type": "integer", "minimum": 1, "maximum": 2147483647 }, "sha256": { "$ref": "#/$defs/sha256" } }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "safeName": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$" }
+  }
+}

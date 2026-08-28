@@ -1,0 +1,5 @@
+{
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1", "base": "promotion-envelope-fixture-1.json",
+  "set": { "path": "/attestation/subjectName", "value": "promotion-claims-other" },
+  "expectedError": "unexpected attestation subject name"
+}

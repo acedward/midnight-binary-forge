@@ -1,0 +1,6 @@
+{
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1",
+  "base": "promotion-envelope-fixture-1.json",
+  "set": { "path": "/claims/issuer/commitSha", "value": "2222222" },
+  "expectedError": "commitSha must be full SHA"
+}
