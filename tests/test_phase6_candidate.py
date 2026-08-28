@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import io
 import json
 import os
 import stat
 import sys
 import tempfile
+import tarfile
 import unittest
 import zipfile
 from pathlib import Path
@@ -176,7 +178,7 @@ class Phase6StreamingVerifierTest(unittest.TestCase):
         info.external_attr = (stat.S_IFREG | mode) << 16
         with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr(info, value)
-        policy = {"container": "zip", "limits": {"maxCompressedBytes": 10000, "maxExpandedBytes": 10000, "maxMembers": 2, "maxExpansionRatio": 100}, "members": [{"path": "fixture", "type": "file", "mode": f"{mode:04o}", "size": len(value), "sha256": hashlib.sha256(value).hexdigest()}]}
+        policy = {"name": path.name, "componentId": "fixture-component", "operation": "build", "container": "zip", "wholeArchive": {"size": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}, "limits": {"maxCompressedBytes": 10000, "maxExpandedBytes": 10000, "maxMembers": 2, "maxExpansionRatio": 100}, "members": [{"path": "fixture", "type": "file", "mode": f"{mode:04o}", "size": len(value), "sha256": hashlib.sha256(value).hexdigest()}], "tarHeaders": []}
         return path, policy
 
     def test_streamed_member_identity_and_substitution(self) -> None:
@@ -187,6 +189,50 @@ class Phase6StreamingVerifierTest(unittest.TestCase):
             policy["members"][0]["sha256"] = "0" * 64
             with self.assertRaises(ForgeError):
                 phase6_candidate.verify_one_archive(archive, policy)
+
+    def test_pinned_upstream_tar_headers_and_owner_header_digest_mutations(self) -> None:
+        name = "celestia-appd-linux-arm64-v6.4.10.tar.gz"
+        expected = phase6_candidate.EXPECTED_IDENTITY_MIRROR_TAR_HEADERS[name]
+        values = {"LICENSE": b"license", "README.md": b"readme", "celestia-appd": b"binary"}
+        modes = {"LICENSE": 0o644, "README.md": 0o644, "celestia-appd": 0o755}
+        with tempfile.TemporaryDirectory() as text:
+            path = Path(text) / name
+            with tarfile.open(path, "w:gz", format=tarfile.GNU_FORMAT) as archive:
+                for header in expected["headers"]:
+                    value = values[header["path"]]
+                    info = tarfile.TarInfo(header["path"])
+                    info.size = len(value)
+                    info.mode = modes[header["path"]]
+                    info.uid, info.gid = header["uid"], header["gid"]
+                    info.uname, info.gname = header["uname"], header["gname"]
+                    info.mtime = header["mtime"]
+                    archive.addfile(info, io.BytesIO(value))
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            members = [{"path": item, "type": "file", "mode": f"{modes[item]:04o}", "size": len(value), "sha256": hashlib.sha256(value).hexdigest()} for item, value in values.items()]
+            members.sort(key=lambda row: row["path"])
+            policy = {"name": name, "componentId": expected["componentId"], "operation": "rename-only", "container": "tar.gz", "wholeArchive": {"size": path.stat().st_size, "sha256": digest}, "limits": {"maxCompressedBytes": 10000, "maxExpandedBytes": 10000, "maxMembers": 3, "maxExpansionRatio": 100}, "members": members, "tarHeaders": expected["headers"]}
+            payload = {"componentId": expected["componentId"], "container": "tar.gz", "size": path.stat().st_size, "sha256": digest}
+            component = {"componentId": expected["componentId"], "operation": "rename-only", "naming": {"container": "tar.gz", "limits": policy["limits"], "members": [{key: row[key] for key in ("path", "type", "mode")} for row in members]}}
+            phase6_candidate.verify_one_archive(path, policy, payload, component)
+            for field, value in (("uid", 0), ("mtime", 0)):
+                mutation = copy.deepcopy(policy)
+                mutation["tarHeaders"][0][field] = value
+                with self.subTest(field=field), self.assertRaises(ForgeError):
+                    phase6_candidate.verify_one_archive(path, mutation, payload, component)
+            mutation = copy.deepcopy(policy)
+            mutation["wholeArchive"]["sha256"] = "0" * 64
+            with self.assertRaises(ForgeError):
+                phase6_candidate.verify_one_archive(path, mutation, payload, component)
+            mutation = copy.deepcopy(component)
+            mutation["operation"] = "build"
+            with self.assertRaises(ForgeError):
+                phase6_candidate.verify_one_archive(path, policy, payload, mutation)
+            canonical_only = copy.deepcopy(policy)
+            canonical_only.update({"name": "built.tar.gz", "componentId": "built-component", "operation": "build", "tarHeaders": []})
+            built = path.with_name("built.tar.gz")
+            built.write_bytes(path.read_bytes())
+            with self.assertRaisesRegex(ForgeError, "non-canonical tar owner"):
+                phase6_candidate.verify_one_archive(built, canonical_only)
 
     def test_all_evidence_names_are_typed(self) -> None:
         self.assertEqual(phase6_candidate.evidence_role("provenance-initial-warehouse-v1.json"), "provenance")

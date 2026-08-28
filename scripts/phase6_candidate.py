@@ -67,6 +67,24 @@ EXPECTED_SOFTWARE_IDENTITIES = {
     "midnight-node-toolkit-linux-arm64-2.0.0-rc.4.zip": (48585850, "4887874e114dafac8807e524b9d7694e1debd098a8d06ede0831ed7fec576528", "phase4-toolkit-linux-arm64", "payloads/midnight-node-toolkit-linux-arm64-2.0.0-rc.4.zip"),
     "midnight-node-toolkit-macos-arm64-2.0.0-rc.4.zip": (45553847, "8df786b56f80bd4c2ea4226240a9855481f7c3d56e5794d939d4391dcfb9a02c", "phase4-toolkit-macos-arm64", "payloads/midnight-node-toolkit-macos-arm64-2.0.0-rc.4.zip"),
 }
+EXPECTED_IDENTITY_MIRROR_TAR_HEADERS = {
+    "celestia-appd-linux-arm64-v6.4.10.tar.gz": {
+        "componentId": "celestia-appd-6.4.10-linux-arm64",
+        "headers": [
+            {"path": "LICENSE", "uid": 1001, "gid": 1001, "uname": "", "gname": "", "mtime": 1770110835},
+            {"path": "README.md", "uid": 1001, "gid": 1001, "uname": "", "gname": "", "mtime": 1770110835},
+            {"path": "celestia-appd", "uid": 0, "gid": 0, "uname": "root", "gname": "root", "mtime": 1770111631},
+        ],
+    },
+    "celestia-node-linux-arm64-v0.28.4.tar.gz": {
+        "componentId": "celestia-node-0.28.4-linux-arm64",
+        "headers": [
+            {"path": "LICENSE", "uid": 1001, "gid": 1001, "uname": "runner", "gname": "runner", "mtime": 1764256280},
+            {"path": "README.md", "uid": 1001, "gid": 1001, "uname": "runner", "gname": "runner", "mtime": 1764256280},
+            {"path": "celestia", "uid": 1001, "gid": 1001, "uname": "runner", "gname": "runner", "mtime": 1764256973},
+        ],
+    },
+}
 EVIDENCE_ROLE_BY_PREFIX = {
     "LICENSE-": "license",
     "NOTICE-": "notice",
@@ -306,7 +324,8 @@ def assemble(buildset_path: Path, input_root: Path, output: Path, root: Path = R
             if payload["artifactKind"] == "software" and payload["sourceArtifactKey"].startswith("phase4-"):
                 record, members, sbom = phase4_record(inputs[payload["sourceArtifactKey"]], payload["name"])
                 phase_records[payload["name"]] = record
-                archive_rows.append({"name": payload["name"], "container": payload["container"], "limits": component["naming"]["limits"], "members": members["members"]})
+                mirror = EXPECTED_IDENTITY_MIRROR_TAR_HEADERS.get(payload["name"])
+                archive_rows.append({"name": payload["name"], "componentId": payload["componentId"], "operation": component["operation"], "container": payload["container"], "wholeArchive": {"size": copied["size"], "sha256": copied["sha256"]}, "limits": component["naming"]["limits"], "members": members["members"], "tarHeaders": mirror["headers"] if mirror is not None else []})
                 sbom_sources[payload["name"]] = sbom
                 signing_rows.append({"name": payload["name"], "componentId": payload["componentId"], "signing": record["signing"]})
             elif payload["artifactKind"] == "software":
@@ -314,7 +333,7 @@ def assemble(buildset_path: Path, input_root: Path, output: Path, root: Path = R
                 evidence = inputs["phase5-indexer"] / f"evidence/indexer-standalone/{os_name}-{arch}/build1/evidence"
                 reproduction = load_json(inputs["phase5-indexer"] / f"evidence/indexer-standalone/{os_name}-{arch}/reproducibility.json")
                 binary = reproduction["binary"]
-                archive_rows.append({"name": payload["name"], "container": "zip", "limits": component["naming"]["limits"], "members": [{"path": binary["name"], "type": "file", "mode": "0755", "size": binary["size"], "sha256": binary["sha256"]}]})
+                archive_rows.append({"name": payload["name"], "componentId": payload["componentId"], "operation": component["operation"], "container": "zip", "wholeArchive": {"size": copied["size"], "sha256": copied["sha256"]}, "limits": component["naming"]["limits"], "members": [{"path": binary["name"], "type": "file", "mode": "0755", "size": binary["size"], "sha256": binary["sha256"]}], "tarHeaders": []})
                 sbom_sources[payload["name"]] = evidence / "sbom-indexer-standalone.spdx.json"
                 signing_rows.append({"name": payload["name"], "componentId": payload["componentId"], "signing": load_json(evidence / "signing-evidence.json")})
 
@@ -412,12 +431,40 @@ def verify_checksums(content: Path, checksums_name: str) -> None:
         expect(sha256_file(path, 2**31 - 1)[0] == rows[name], f"candidate checksum mismatch: {name}")
 
 
-def verify_one_archive(path: Path, policy: dict[str, Any]) -> None:
+def verify_one_archive(path: Path, policy: dict[str, Any], expected_payload: dict[str, Any] | None = None, component: dict[str, Any] | None = None) -> None:
+    required = {"name", "componentId", "operation", "container", "wholeArchive", "limits", "members", "tarHeaders"}
+    expect(set(policy) == required and policy["name"] == path.name, f"archive evidence fields/name differ: {path.name}")
+    whole = identity(path)
+    expect(policy["wholeArchive"] == {"size": whole["size"], "sha256": whole["sha256"]}, f"whole-archive identity differs: {path.name}")
+    if expected_payload is not None:
+        expect(policy["componentId"] == expected_payload["componentId"], f"archive component differs: {path.name}")
+        expect(policy["container"] == expected_payload["container"], f"archive container differs: {path.name}")
+        expect(policy["wholeArchive"] == {"size": expected_payload["size"], "sha256": expected_payload["sha256"]}, f"archive differs from exact build-set payload: {path.name}")
+    if component is not None:
+        expect(policy["componentId"] == component["componentId"] and policy["operation"] == component["operation"], f"archive operation/component differs from manifest: {path.name}")
+        expect(policy["container"] == component["naming"]["container"] and policy["limits"] == component["naming"]["limits"], f"archive container/limits differ from component: {path.name}")
+        member_contract = [{key: row[key] for key in ("path", "type", "mode")} for row in policy["members"]]
+        component_contract = [{key: row[key] for key in ("path", "type", "mode")} for row in component["naming"]["members"]]
+        component_by_path = {row["path"]: row for row in component_contract}
+        member_by_path = {row["path"]: row for row in member_contract}
+        expect(all(member_by_path.get(name) == row for name, row in component_by_path.items()), f"archive misses/differs from component member contract: {path.name}")
+        for row in member_contract:
+            if row["path"] not in component_by_path:
+                expect(any(parent["type"] == "directory" and row["path"].startswith(parent["path"] + "/") for parent in component_contract), f"archive member is outside component contract: {path.name}:{row['path']}")
     compressed = path.stat().st_size
     limits = policy["limits"]
     expect(compressed <= limits["maxCompressedBytes"], f"archive exceeds compressed bound: {path.name}")
-    iterator = validate_archive.zip_members if policy["container"] == "zip" else validate_archive.tar_members
-    members = list(iterator(path))
+    mirror = EXPECTED_IDENTITY_MIRROR_TAR_HEADERS.get(path.name)
+    if mirror is None:
+        expect(policy["tarHeaders"] == [], f"tar-header exception forbidden for build/repackage archive: {path.name}")
+        iterator = validate_archive.zip_members if policy["container"] == "zip" else validate_archive.tar_members
+        members = list(iterator(path))
+    else:
+        expect(policy["container"] == "tar.gz" and policy["operation"] in {"identity-mirror", "rename-only"}, f"upstream tar-header policy requires identity-mirror/rename-only: {path.name}")
+        expect(policy["componentId"] == mirror["componentId"] and policy["tarHeaders"] == mirror["headers"], f"upstream tar-header allowlist differs: {path.name}")
+        members = list(validate_archive.tar_members(path, require_canonical_owner=False))
+        headers = [{"path": member.path, "uid": member.uid, "gid": member.gid, "uname": member.uname, "gname": member.gname, "mtime": member.mtime} for member in members]
+        expect(headers == mirror["headers"], f"pinned upstream tar headers differ: {path.name}")
     expect(len(members) <= limits["maxMembers"], f"archive exceeds member bound: {path.name}")
     validate_unique_names(member.path for member in members)
     expected = {row["path"]: row for row in policy["members"]}
@@ -481,11 +528,16 @@ def verify_candidate(buildset_path: Path, content: Path, root: Path = ROOT) -> d
         expect(observed["size"] == srs[name]["size"] and observed["sha256"] == srs[name]["sha256"], f"raw proof payload differs: {name}")
     policies = load_json(content / f"software-member-manifests-{build_id}.json")
     expect(policies.get("schemaVersion") == "phase6-software-member-manifests-v1" and len(policies.get("archives", [])) == 10, "software archive policy set differs")
+    component_by_id = {row["componentId"]: load_json(root / row["manifestPath"]) for row in buildset["components"]}
     for policy in policies["archives"]:
-        verify_one_archive(content / policy["name"], policy)
+        expected = next((row for row in buildset["payloads"] if row["name"] == policy["name"]), None)
+        expect(expected is not None, f"archive evidence names an unapproved payload: {policy['name']}")
+        verify_one_archive(content / policy["name"], policy, expected, component_by_id[expected["componentId"]])
     ledger = content / "midnight-ledger-static-noarch-9.0.0.zip"
-    ledger_policy = {"name": ledger.name, "container": "zip", "limits": load_json(root / "catalog/components/midnight-ledger-static-9.0.0.json")["naming"]["limits"], "members": load_json(root / "catalog/proof-data/ledger-static-9-zip-layout-manifest.json")["members"]}
-    verify_one_archive(ledger, ledger_policy)
+    ledger_component = load_json(root / "catalog/components/midnight-ledger-static-9.0.0.json")
+    ledger_payload = next(row for row in buildset["payloads"] if row["name"] == ledger.name)
+    ledger_policy = {"name": ledger.name, "componentId": ledger_payload["componentId"], "operation": ledger_component["operation"], "container": "zip", "wholeArchive": {"size": ledger_payload["size"], "sha256": ledger_payload["sha256"]}, "limits": ledger_component["naming"]["limits"], "members": load_json(root / "catalog/proof-data/ledger-static-9-zip-layout-manifest.json")["members"], "tarHeaders": []}
+    verify_one_archive(ledger, ledger_policy, ledger_payload, ledger_component)
     lineage = load_json(content / f"proof-data-lineage-{build_id}.json")
     expect(lineage.get("payloadCount") == 21 and len(lineage.get("payloads", [])) == 21 and lineage.get("softwareSbom") == "not-applicable", "proof-data lineage differs")
     signing = load_json(content / f"signing-evidence-{build_id}.json")
