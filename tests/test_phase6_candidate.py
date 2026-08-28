@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import stat
 import sys
 import tempfile
@@ -141,6 +142,30 @@ class Phase6BuildSetTest(unittest.TestCase):
             (proof / "payloads").rename(proof / "proof-data-q8b-wrapper")
             with self.assertRaisesRegex(ForgeError, "top-level layout"):
                 phase6_candidate.validate_input_layout(buildset, root)
+
+    def test_relative_cwd_buildset_path_resolves_inside_repository(self) -> None:
+        previous = Path.cwd()
+        try:
+            os.chdir(ROOT)
+            resolved, relative = phase6_candidate.repository_file(Path("catalog/buildsets/initial-warehouse-v1.json"))
+        finally:
+            os.chdir(previous)
+        self.assertEqual(resolved, BUILD_SET)
+        self.assertEqual(relative.as_posix(), "catalog/buildsets/initial-warehouse-v1.json")
+
+    def test_out_of_root_and_symlink_buildset_paths_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as repository_text, tempfile.TemporaryDirectory() as outside_text:
+            repository = Path(repository_text)
+            inside = repository / "buildset.json"
+            inside.write_text("{}\n", encoding="utf-8")
+            outside = Path(outside_text) / "buildset.json"
+            outside.write_text("{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(ForgeError, "outside the repository root"):
+                phase6_candidate.repository_file(outside, repository)
+            link = repository / "buildset-link.json"
+            link.symlink_to(inside)
+            with self.assertRaisesRegex(ForgeError, "traverses a symlink"):
+                phase6_candidate.repository_file(link, repository)
 
 
 class Phase6StreamingVerifierTest(unittest.TestCase):

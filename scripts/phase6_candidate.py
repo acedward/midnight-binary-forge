@@ -95,6 +95,28 @@ def strict_relative(value: str) -> PurePosixPath:
     return path
 
 
+def repository_file(path: Path, root: Path = ROOT, label: str = "repository file") -> tuple[Path, PurePosixPath]:
+    """Resolve a CLI path from the caller's CWD without permitting escape or symlinks."""
+    repository = root.resolve(strict=True)
+    expect(repository.is_dir() and not root.is_symlink(), "repository root is missing or unsafe")
+    lexical = Path(os.path.abspath(os.fspath(path)))
+    try:
+        lexical_relative = lexical.relative_to(repository)
+    except ValueError as exc:
+        raise ForgeError(f"{label} is outside the repository root: {path}") from exc
+    cursor = repository
+    for part in lexical_relative.parts:
+        cursor = cursor / part
+        expect(not cursor.is_symlink(), f"{label} traverses a symlink: {path}")
+    resolved = lexical.resolve(strict=True)
+    try:
+        relative = resolved.relative_to(repository)
+    except ValueError as exc:
+        raise ForgeError(f"{label} resolves outside the repository root: {path}") from exc
+    validate_regular_file(resolved)
+    return resolved, PurePosixPath(relative.as_posix())
+
+
 def media_type(name: str) -> str:
     if name.endswith(".spdx.json"):
         return "application/spdx+json"
@@ -254,6 +276,7 @@ def validate_input_layout(buildset: dict[str, Any], input_root: Path) -> dict[st
 
 
 def assemble(buildset_path: Path, input_root: Path, output: Path, root: Path = ROOT) -> dict[str, Any]:
+    buildset_path, buildset_relative = repository_file(buildset_path, root, "build-set path")
     buildset, coverage = validate_buildset(buildset_path, root)
     expect(not output.exists() and output.parent.is_dir(), "candidate output must not already exist")
     inputs = validate_input_layout(buildset, input_root)
@@ -339,7 +362,7 @@ def assemble(buildset_path: Path, input_root: Path, output: Path, root: Path = R
         source_manifest = {
             "schemaVersion": "phase6-source-manifest-v1",
             "buildSetId": build_id,
-            "buildSet": {"path": buildset_path.relative_to(root).as_posix(), "size": buildset_path.stat().st_size, "sha256": sha256_file(buildset_path)[0]},
+            "buildSet": {"path": buildset_relative.as_posix(), "size": buildset_path.stat().st_size, "sha256": sha256_file(buildset_path)[0]},
             "reviewedInputBaselineSha": buildset["sourceFullSha"],
             "inputArtifacts": buildset["inputArtifacts"],
             "destination": buildset["destination"],
