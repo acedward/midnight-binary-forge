@@ -1,0 +1,6 @@
+{
+  "fixtureVersion": "promotion-envelope-invalid-fixture-v1",
+  "base": "valid.json",
+  "swap": { "left": "/claims/assets/0", "right": "/claims/assets/1" },
+  "expectedError": "assets must be ordered by name"
+}
