@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "component-v1",
+  "componentId": "fixture-tool-1.0.0",
+  "artifactKind": "software",
+  "family": "fixture-tool",
+  "version": "1.0.0",
+  "operation": "build",
+  "source": {
+    "repository": "example/fixture-tool",
+    "commitSha": "1111111111111111111111111111111111111111",
+    "tag": "v1.0.0",
+    "lockedDependencies": true,
+    "toolchain": "python-3.12",
+    "buildFlags": []
+  },
+  "destination": {
+    "repository": "effectstream/binaries",
+    "tag": "0.3.120"
+  },
+  "distributionTier": "development-only",
+  "releaseMutability": "mutable-warehouse",
+  "license": {
+    "spdx": "Apache-2.0",
+    "evidence": [
+      {
+        "url": "https://example.test/fixture/LICENSE",
+        "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+      }
+    ]
+  },
+  "naming": {
+    "outerTemplate": "fixture-tool-{os}-{arch}-v{version}.zip",
+    "container": "zip",
+    "appendOnly": true,
+    "members": [
+      {
+        "path": "fixture-tool",
+        "type": "file",
+        "mode": "0755"
+      }
+    ],
+    "limits": {
+      "maxCompressedBytes": 1048576,
+      "maxExpandedBytes": 2097152,
+      "maxMembers": 4,
+      "maxExpansionRatio": 10
+    }
+  },
+  "install": {
+    "mode": "0755",
+    "pathTemplate": "bin/fixture-tool"
+  },
+  "targets": [
+    {
+      "os": "linux",
+      "arch": "amd64",
+      "tier": "required",
+      "runner": "ubuntu-24.04",
+      "native": true
+    },
+    {
+      "os": "linux",
+      "arch": "arm64",
+      "tier": "desired",
+      "runner": "ubuntu-24.04-arm",
+      "native": true
+    },
+    {
+      "os": "macos",
+      "arch": "arm64",
+      "tier": "required",
+      "runner": "macos-15",
+      "native": true
+    }
+  ],
+  "compatibility": {
+    "kind": "software-runtime",
+    "runtime": "fixture-runtime-1"
+  },
+  "signing": {
+    "applicability": "macos",
+    "distributionSigningState": "UNSIGNED_DEVELOPMENT_ONLY",
+    "codeSignatureKind": "none",
+    "cdHash": null,
+    "authorities": [],
+    "teamId": null,
+    "hardenedRuntime": null,
+    "strictVerification": false
+  },
+  "sbom": {
+    "formats": [
+      "spdx-json"
+    ]
+  },
+  "validation": {
+    "probes": [
+      "sha256",
+      "archive-safety",
+      "native-architecture",
+      "version"
+    ],
+    "commands": [
+      [
+        "fixture-tool",
+        "--version"
+      ]
+    ]
+  }
+}

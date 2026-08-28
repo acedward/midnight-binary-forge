@@ -5,6 +5,12 @@ writes. `effectstream/binaries@0.3.120` is updated manually outside Actions.
 
 ## Candidate lifecycle
 
+Phase 1 installs and tests the boundary contract but deliberately cannot allocate or publish a
+release: `PHASE6_CANDIDATE_ENABLED` is absent and all draft/final-claims/publisher jobs are guarded;
+their transaction steps also fail closed. Phase 6 replaces those stubs with the exact hash-bound
+implementation through a reviewed main-branch PR, runs the live gate, and only then enables the
+repository variable. Setting the variable against the Phase-1 scaffold cannot publish a draft.
+
 1. Merge exact component/build-set manifests through protected main. Reject abbreviated/floating
    refs, Compact warehouse components, incomplete required platform coverage, and proof-data scope
    outside K0–K19 plus Ledger static 9.

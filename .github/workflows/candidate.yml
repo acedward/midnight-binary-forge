@@ -1,0 +1,102 @@
+name: Immutable forge candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      build-set-id:
+        description: Committed catalog/buildsets ID (no path or URL)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: forge-candidate-${{ inputs.build-set-id }}
+  cancel-in-progress: false
+
+jobs:
+  validate-committed-build-set:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out protected-main source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Validate inert build-set identifier and committed manifest
+        env:
+          BUILD_SET_ID: ${{ inputs.build-set-id }}
+        run: |
+          case "$BUILD_SET_ID" in
+            ''|*[!a-z0-9._-]*) exit 2 ;;
+          esac
+          test "${GITHUB_REF}" = 'refs/heads/main'
+          test -f "catalog/buildsets/${BUILD_SET_ID}.json"
+          python3 -m pip install --requirement requirements-ci.txt
+          python3 scripts/validate_catalog.py build-set "catalog/buildsets/${BUILD_SET_ID}.json" --root .
+
+  # Phase 1 freezes the privilege boundary and attestation inputs. Phase 6 activates these jobs only
+  # after exact build/mirror payloads and the two verifier handoffs exist. Keeping them false here
+  # prevents a manifest-only scaffold from allocating or publishing a release.
+  create-protected-draft:
+    if: ${{ vars.PHASE6_CANDIDATE_ENABLED == 'true' }}
+    needs: validate-committed-build-set
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: candidate-publish
+    permissions:
+      contents: write
+    steps:
+      - name: Allocate and API-read-back empty draft
+        run: echo 'Phase 6 supplies the hash-bound draft allocation implementation' && exit 2
+
+  fresh-final-claims-verifier:
+    if: ${{ vars.PHASE6_CANDIDATE_ENABLED == 'true' }}
+    needs: create-protected-draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      claims-digest: ${{ steps.verify.outputs.claims-digest }}
+    steps:
+      - name: Check out exact source without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Re-verify inert content and final draft-bound claims
+        id: verify
+        run: |
+          python3 scripts/publisher_guard.py verify-claims-content --claims "promotion-claims-${{ inputs.build-set-id }}.json" --content-dir verified-content --require-context
+          printf 'claims-digest=sha256:%s\n' "$(python3 scripts/canonical_json.py sha256 "promotion-claims-${{ inputs.build-set-id }}.json")" >> "$GITHUB_OUTPUT"
+
+  protected-publisher:
+    if: ${{ vars.PHASE6_CANDIDATE_ENABLED == 'true' }}
+    needs: fresh-final-claims-verifier
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: candidate-publish
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Check out exact source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Recheck inert claims/content before attestation
+        run: python3 scripts/publisher_guard.py verify-claims-content --claims "promotion-claims-${{ inputs.build-set-id }}.json" --content-dir verified-content --require-context
+      - name: Attest exact canonical claims predicate
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-name: promotion-claims-${{ inputs.build-set-id }}
+          subject-digest: ${{ needs.fresh-final-claims-verifier.outputs.claims-digest }}
+          predicate-type: https://github.com/acedward/midnight-binary-forge/predicates/promotion-envelope/v1
+          predicate-path: promotion-claims-${{ inputs.build-set-id }}.json
+          show-summary: false
+      - name: Bind bundle, recheck inert transport, upload/read-back, and publish
+        run: echo 'Phase 6 supplies the exact bundle-path handoff and release transaction' && exit 2

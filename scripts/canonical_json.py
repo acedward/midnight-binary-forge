@@ -264,6 +264,40 @@ def verify_envelope(envelope: Any, verification_time: dt.datetime | None = None,
     expect(attestation["identity"] == ATTESTATION_IDENTITY, "unexpected attestation identity")
 
 
+def verify_claims(claims: Any, verification_time: dt.datetime | None = None, require_staging_live: bool = False) -> str:
+    """Verify final draft-bound claims before the publisher has attested them.
+
+    The synthetic attestation is made entirely from the claims and fixed protocol
+    constants.  It exists only to reuse the envelope verifier; it is never emitted
+    or accepted as a real bundle.
+    """
+    build_set = claims.get("buildSet", {}) if isinstance(claims, dict) else {}
+    transport = claims.get("transport", {}) if isinstance(claims, dict) else {}
+    build_set_id = build_set.get("id", "") if isinstance(build_set, dict) else ""
+    bundle_name = transport.get("attestationBundleName", "") if isinstance(transport, dict) else ""
+    claims_sha256 = digest(claims)
+    envelope = {
+        "schemaVersion": "promotion-envelope-v1",
+        "canonicalization": "forge-canonical-json-v1",
+        "claims": claims,
+        "claimsDigest": f"sha256:{claims_sha256}",
+        "attestation": {
+            "kind": "github-artifact-attestation",
+            "predicateType": PREDICATE_TYPE,
+            "predicateCanonicalization": "forge-canonical-json-v1",
+            "predicateSha256": claims_sha256,
+            "subjectName": f"promotion-claims-{build_set_id}",
+            "bundleName": bundle_name,
+            "bundleSha256": "0" * 64,
+            "subjectDigest": f"sha256:{claims_sha256}",
+            "issuer": "https://token.actions.githubusercontent.com",
+            "identity": ATTESTATION_IDENTITY,
+        },
+    }
+    verify_envelope(envelope, verification_time, require_staging_live)
+    return claims_sha256
+
+
 def github_api_time() -> dt.datetime:
     expect(os.environ.get("GITHUB_ACTIONS") == "true", "production staging-liveness check must run in authenticated GitHub Actions")
     expect(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY, "production staging-liveness check is in the wrong repository")
@@ -375,6 +409,10 @@ def main() -> int:
     verify.add_argument("input", type=Path)
     verify.add_argument("--test-verification-time")
     verify.add_argument("--require-staging-live", action="store_true")
+    verify_claims_parser = subparsers.add_parser("verify-claims")
+    verify_claims_parser.add_argument("input", type=Path)
+    verify_claims_parser.add_argument("--test-verification-time")
+    verify_claims_parser.add_argument("--require-staging-live", action="store_true")
     live = subparsers.add_parser("verify-live")
     live.add_argument("envelope", type=Path)
     live.add_argument("bundle", type=Path)
@@ -412,9 +450,13 @@ def main() -> int:
                     verification_time = github_api_time()
                 else:
                     verification_time = None
-                verify_envelope(value, verification_time, args.require_staging_live)
-                print(f"OK promotion-envelope-v1 {args.input}")
-    except ProtocolError as exc:
+                if args.command == "verify-claims":
+                    verify_claims(value, verification_time, args.require_staging_live)
+                    print(f"OK promotion-claims-v1 {args.input}")
+                else:
+                    verify_envelope(value, verification_time, args.require_staging_live)
+                    print(f"OK promotion-envelope-v1 {args.input}")
+    except (ProtocolError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     return 0

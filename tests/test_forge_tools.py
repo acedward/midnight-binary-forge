@@ -139,6 +139,15 @@ class ForgeToolsTest(unittest.TestCase):
             bad_envelope.write_bytes(envelope_path.read_bytes() + b" ")
             with self.assertRaisesRegex(canonical_json.ProtocolError, "not canonical"):
                 canonical_json.verify_live_evidence(envelope, live, bad_envelope, bundle_path)
+            missing = run_script(
+                "canonical_json.py",
+                "verify-live",
+                str(envelope_path),
+                str(directory / "attestation-fixture-1.sigstore.json"),
+                str(fixture_dir / "live-valid.json"),
+                expected=2,
+            )
+            self.assertNotIn("Traceback", missing.stderr)
 
     def test_verified_fetch_is_create_only_and_digest_bound(self) -> None:
         payload = b"inert fixture bytes\n"

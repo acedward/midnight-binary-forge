@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "component-v1",
+  "componentId": "midnight-srs-k0",
+  "artifactKind": "proof-data",
+  "family": "midnight-srs",
+  "operation": "identity-mirror",
+  "source": {
+    "repository": "midnightntwrk/midnight-ledger",
+    "commitSha": "7a89f45d29792be7e09ca5eb246f1e69f0b2a179",
+    "object": {
+      "url": "https://srs.midnight.network/bls_midnight_2p0",
+      "size": 580,
+      "sha256": "59b30b3114a34ccbbfb599376e178fb8d9b3366cae2174c2f1da20e75847f823",
+      "officialName": "bls_midnight_2p0"
+    }
+  },
+  "destination": {
+    "repository": "effectstream/binaries",
+    "tag": "0.3.120"
+  },
+  "distributionTier": "development-only",
+  "releaseMutability": "mutable-warehouse",
+  "license": {
+    "spdx": "Apache-2.0",
+    "evidence": [
+      {
+        "url": "https://github.com/midnightntwrk/midnight-ledger/blob/7a89f45d29792be7e09ca5eb246f1e69f0b2a179/LICENSE",
+        "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    ],
+    "perBlobLicenseAvailable": false
+  },
+  "naming": {
+    "outerTemplate": "bls_midnight_2p0",
+    "container": "raw",
+    "appendOnly": true,
+    "rawName": "bls_midnight_2p0",
+    "correctionTemplate": "midnight-srs-noarch-2p0-{generation}.bin"
+  },
+  "install": {
+    "mode": "0644",
+    "alias": "bls_midnight_2p0"
+  },
+  "platform": "noarch",
+  "compatibility": {
+    "kind": "srs",
+    "k": 0,
+    "srsGeneration": "midnight-ledger-provider-compat@7a89f45d29792be7e09ca5eb246f1e69f0b2a179/sha256:59b30b3114a34ccbbfb599376e178fb8d9b3366cae2174c2f1da20e75847f823",
+    "officialAlias": null,
+    "installedAlias": "bls_midnight_2p0",
+    "exactConsumers": [
+      {
+        "proofServerVersion": "9.0.0-rc.5",
+        "sourceCommit": "7a89f45d29792be7e09ca5eb246f1e69f0b2a179",
+        "imageDigests": {
+          "plain": "sha256:d96a4d0f3f0f10f82698288443f2873a32fed180eb8f93c0bae83572c0a187a9"
+        },
+        "ledgerStaticSemver": "9.0.0",
+        "cacheNamespace": "9"
+      }
+    ]
+  },
+  "signing": null,
+  "lineageManifest": {
+    "required": true,
+    "memberDigestsRequired": true
+  },
+  "validation": {
+    "probes": [
+      "sha256",
+      "raw-name",
+      "raw-mode",
+      "proof-alias",
+      "proof-compatibility"
+    ]
+  }
+}
