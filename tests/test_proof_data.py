@@ -25,6 +25,7 @@ import generate_proof_catalog  # noqa: E402
 import proof_cache_bootstrap  # noqa: E402
 import proof_data_pipeline  # noqa: E402
 import validate_catalog  # noqa: E402
+import validate_stock_aa_manifest  # noqa: E402
 from forge_io import ForgeError, canonical_bytes  # noqa: E402
 
 
@@ -111,6 +112,7 @@ class ProofDataPolicyTest(unittest.TestCase):
         self.assertEqual(fixture["circuit"]["id"], "execute")
         self.assertEqual(fixture["circuit"]["k"], 19)
         artifacts = {row["path"]: row for row in fixture["circuit"]["artifacts"]}
+        self.assertEqual(set(artifacts), {"keys/execute.prover", "keys/execute.verifier", "zkir/execute.bzkir", "zkir/execute.zkir"})
         self.assertEqual(artifacts["keys/execute.prover"]["size"], 1141041970)
         self.assertEqual(artifacts["keys/execute.prover"]["sha256"], "382ae4325f239a3e4e9ac292cacbb1ed1eceec71112eefa2f7557f6ecbe6865a")
         self.assertEqual(artifacts["zkir/execute.bzkir"]["sha256"], "ab697f15c424d5c5d47c3dbfe114521611bcd28e3c9655d84d388b5f0f16a06b")
@@ -119,6 +121,13 @@ class ProofDataPolicyTest(unittest.TestCase):
         self.assertFalse(fixture["scope"]["capturedRequestAllowed"])
         self.assertFalse(fixture["scope"]["walletOrLiveStateAllowed"])
         self.assertEqual(fixture["scope"]["k18"], "not-applicable-disabled-overlay-not-restored-or-audited")
+        manifest = fixture["circuit"]["compilerManifest"]
+        self.assertEqual(manifest["canonicalization"], "forge-canonical-json-v1")
+        self.assertEqual(manifest["canonicalSha256"], "1c69c61838da1a8a864439883e3f3f708c5150e7ee2b45f8e5294c5676f38a18")
+        self.assertEqual(manifest["referencedFileCount"], 40)
+        self.assertFalse(manifest["rawTransportIdentityBearing"])
+        self.assertEqual(manifest["generationPathContract"]["source"], "/contracts/manager.compact")
+        self.assertEqual(manifest["generationPathContract"]["output"], "/aa/contract-manager/src/managed")
 
         generator = (ROOT / "scripts/stock_aa_k19_proof.mjs").read_text()
         runtime = (ROOT / "scripts/stock_aa_k19_runtime.py").read_text()
@@ -128,9 +137,57 @@ class ProofDataPolicyTest(unittest.TestCase):
         self.assertIn('"--network", network', runtime)
         self.assertIn('"--internal", network', runtime)
         self.assertIn("--network none", workflow)
+        self.assertIn("/aa/contract-manager/src/managed", workflow)
         self.assertIn("stock-aa-k19-proof:", workflow)
         self.assertIn("POST /k", json.dumps(fixture))
         self.assertIn("POST /prove", json.dumps(fixture))
+
+    def test_stock_aa_manifest_canonical_semantics_and_file_closure(self) -> None:
+        with tempfile.TemporaryDirectory() as text:
+            root = Path(text)
+            rows = {}
+            frozen = []
+            for directory in ("compiler", "contract", "zkir", "keys"):
+                (root / directory).mkdir()
+                relative = f"{directory}/fixture.bin"
+                data = f"public-{directory}".encode()
+                (root / relative).write_bytes(data)
+                row = {"type": "file", "size": len(data), "hash": hashlib.sha256(data).hexdigest()}
+                rows[directory] = row
+                frozen.append({"path": relative, "size": len(data), "sha256": row["hash"]})
+            versions = {
+                "manifest-version": "1",
+                "compiler-version": "0.33.0",
+                "language-version": "0.25.0",
+                "runtime-version": "0.18.0-rc.1",
+            }
+            value = dict(versions)
+            for directory in ("keys", "zkir", "contract", "compiler"):
+                value[directory] = {"fixture.bin": rows[directory], "type": "directory"}
+            contract = {
+                "path": "compiler/contract-manifest.json",
+                "canonicalization": "forge-canonical-json-v1",
+                "canonicalSha256": hashlib.sha256(canonical_bytes(value)).hexdigest(),
+                "referencedFileCount": 4,
+                "directories": ["compiler", "contract", "zkir", "keys"],
+                "semanticVersions": versions,
+                "frozenArtifacts": frozen,
+            }
+            # Deliberately preserve a different transport order from canonical JSON.
+            (root / contract["path"]).write_text(json.dumps(value, indent=2) + "\n")
+            result = validate_stock_aa_manifest.validate_contract_manifest(root, contract)
+            self.assertTrue(result["fileSetClosed"] and result["allListedFilesVerified"])
+            self.assertFalse(result["rawTransport"]["identityBearing"])
+            self.assertNotEqual(result["rawTransport"]["sha256"], result["canonicalSha256"])
+
+            extra = root / "keys/extra"
+            extra.write_bytes(b"extra")
+            with self.assertRaisesRegex(ForgeError, "file set differs"):
+                validate_stock_aa_manifest.validate_contract_manifest(root, contract)
+            extra.unlink()
+            (root / "keys/fixture.bin").write_bytes(b"corrupt")
+            with self.assertRaisesRegex(ForgeError, "size drift|hash drift"):
+                validate_stock_aa_manifest.validate_contract_manifest(root, contract)
 
     def test_generated_catalog_is_canonical_and_all_components_validate(self) -> None:
         outputs = generate_proof_catalog.generated_files()

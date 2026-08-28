@@ -13,6 +13,7 @@ on:
       - 'scripts/proof_runtime_docker.py'
       - 'scripts/stock_aa_k19_proof.mjs'
       - 'scripts/stock_aa_k19_runtime.py'
+      - 'scripts/validate_stock_aa_manifest.py'
       - 'scripts/validate_compact_direct.py'
       - 'tests/test_proof_data.py'
   push:
@@ -29,6 +30,7 @@ on:
       - 'scripts/proof_runtime_docker.py'
       - 'scripts/stock_aa_k19_proof.mjs'
       - 'scripts/stock_aa_k19_runtime.py'
+      - 'scripts/validate_stock_aa_manifest.py'
       - 'scripts/validate_compact_direct.py'
       - 'tests/test_proof_data.py'
   workflow_dispatch:
@@ -251,17 +253,13 @@ jobs:
             --mount "type=bind,src=$RUNNER_TEMP_ROOT/compactc-0.33.0-rc.2,dst=/tool,readonly" \
             --mount "type=bind,src=$RUNNER_TEMP_ROOT/stock-aa/contracts,dst=/contracts,readonly" \
             --mount "type=bind,src=$fixed_generation,dst=/proof-params,readonly" \
-            --mount "type=bind,src=$RUNNER_TEMP_ROOT/stock-aa/tests/generated/manager-keys,dst=/out" \
+            --mount "type=bind,src=$RUNNER_TEMP_ROOT/stock-aa/tests/generated/manager-keys,dst=/aa/contract-manager/src/managed" \
             docker.io/library/python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7 \
-            /tool/compactc --feature-zkir-v3 /contracts/manager.compact /out
+            /tool/compactc --feature-zkir-v3 /contracts/manager.compact /aa/contract-manager/src/managed
           cd "$RUNNER_TEMP_ROOT/stock-aa/tests/generated/manager-keys"
-          printf '%s  %s\n' \
-            382ae4325f239a3e4e9ac292cacbb1ed1eceec71112eefa2f7557f6ecbe6865a keys/execute.prover \
-            e24ba5cf69bd494765b5daa79da9b6da55a5385e625b060467184b156035fd3b keys/execute.verifier \
-            ab697f15c424d5c5d47c3dbfe114521611bcd28e3c9655d84d388b5f0f16a06b zkir/execute.bzkir \
-            bd8e655895e883a78525dce673ca398d45af84cc21e4c713860b39d5fd7774ec zkir/execute.zkir \
-            9ea2d64810852f853461d90a50090a1a71b4e065256c1c2068e25d1a37b2da33 compiler/contract-manifest.json \
-            | sha256sum --check --strict
+          python3 "$GITHUB_WORKSPACE/scripts/validate_stock_aa_manifest.py" \
+            --artifact-root . \
+            --output "$RUNNER_TEMP_ROOT/stock-aa-compiler-manifest-validation.json"
       - name: Execute real rc.5 stock-AA K19 proof with origin egress blocked
         env:
           RUNNER_TEMP_ROOT: ${{ runner.temp }}
@@ -284,6 +282,7 @@ jobs:
           path: |
             ${{ runner.temp }}/stock-aa-k19-runtime.json
             ${{ runner.temp }}/stock-aa-runtime-work/stock-aa-k19-node.json
+            ${{ runner.temp }}/stock-aa-compiler-manifest-validation.json
           if-no-files-found: error
           retention-days: 14
           compression-level: 9

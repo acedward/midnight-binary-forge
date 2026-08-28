@@ -95,13 +95,54 @@
         "path": "zkir/execute.zkir",
         "size": 605634,
         "sha256": "bd8e655895e883a78525dce673ca398d45af84cc21e4c713860b39d5fd7774ec"
-      },
-      {
-        "path": "compiler/contract-manifest.json",
-        "size": 6753,
-        "sha256": "9ea2d64810852f853461d90a50090a1a71b4e065256c1c2068e25d1a37b2da33"
       }
-    ]
+    ],
+    "compilerManifest": {
+      "path": "compiler/contract-manifest.json",
+      "canonicalization": "forge-canonical-json-v1",
+      "canonicalSha256": "1c69c61838da1a8a864439883e3f3f708c5150e7ee2b45f8e5294c5676f38a18",
+      "rawTransportIdentityBearing": false,
+      "generationPathContract": {
+        "source": "/contracts/manager.compact",
+        "output": "/aa/contract-manager/src/managed",
+        "reason": "the compiler emits a relative sourceRoot into contract/index.js.map; these fixed non-secret container paths reproduce the reviewed semantics while canonical JSON removes member-order variance"
+      },
+      "referencedFileCount": 40,
+      "directories": [
+        "compiler",
+        "contract",
+        "zkir",
+        "keys"
+      ],
+      "semanticVersions": {
+        "manifest-version": "1",
+        "compiler-version": "0.33.0",
+        "language-version": "0.25.0",
+        "runtime-version": "0.18.0-rc.1"
+      },
+      "frozenArtifacts": [
+        {
+          "path": "keys/execute.prover",
+          "size": 1141041970,
+          "sha256": "382ae4325f239a3e4e9ac292cacbb1ed1eceec71112eefa2f7557f6ecbe6865a"
+        },
+        {
+          "path": "keys/execute.verifier",
+          "size": 3321,
+          "sha256": "e24ba5cf69bd494765b5daa79da9b6da55a5385e625b060467184b156035fd3b"
+        },
+        {
+          "path": "zkir/execute.bzkir",
+          "size": 184411,
+          "sha256": "ab697f15c424d5c5d47c3dbfe114521611bcd28e3c9655d84d388b5f0f16a06b"
+        },
+        {
+          "path": "zkir/execute.zkir",
+          "size": 605634,
+          "sha256": "bd8e655895e883a78525dce673ca398d45af84cc21e4c713860b39d5fd7774ec"
+        }
+      ]
+    }
   },
   "runtime": {
     "proofServerVariant": "experimental",
