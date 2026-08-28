@@ -1,0 +1,158 @@
+{
+  "schemaVersion": "stock-aa-k19-input-v1",
+  "purpose": "deterministic non-secret stock-AA K19 proof acceptance fixture",
+  "scope": {
+    "productionUse": false,
+    "capturedRequestAllowed": false,
+    "walletOrLiveStateAllowed": false,
+    "k18": "not-applicable-disabled-overlay-not-restored-or-audited"
+  },
+  "source": {
+    "repository": "acedward/AA-midnight-evm-experiment-v3",
+    "commit": "713a20215f33e02904ea5bd699b7de7f76562e1b",
+    "tree": "b80be8377cf97913b9bfef0f3efe3870bdd56274",
+    "files": [
+      {
+        "path": "contracts/manager.compact",
+        "sha256": "164cf112dc52ba88f1e16cfbd1e63c3bc6b2831539be12e7de229847dd7025c7"
+      },
+      {
+        "path": "tests/package.json",
+        "sha256": "50eafed342d1be2d19dcc72d51c98ce9f69eb41fb0fd47db1018125787424632"
+      },
+      {
+        "path": "tests/pnpm-lock.yaml",
+        "sha256": "6bd6566c2883da39496e660afd0cdcfc89c0384f868f20d5b13e735dc43c7d90"
+      },
+      {
+        "path": "tests/pnpm-workspace.yaml",
+        "sha256": "4934d34892a92332f76bd3bf20eebc8b97f7ad3fcf9e6ff4de4c82fdb1d9991c"
+      }
+    ]
+  },
+  "toolchain": {
+    "compilerVersion": "0.33.0-rc.2",
+    "compilerReportedVersion": "0.33.0",
+    "languageVersion": "0.25.0",
+    "backend": "zkir-v3",
+    "release": {
+      "repository": "LFDT-Minokawa/compact",
+      "id": 354541158,
+      "nodeId": "RE_kwDOQnquic4VId5m",
+      "tag": "compactc-v0.33.0-rc.2",
+      "immutable": true,
+      "asset": {
+        "id": 478090789,
+        "nodeId": "RA_kwDOQnquic4cfxYl",
+        "name": "compactc_v0.33.0-rc.2_x86_64-unknown-linux-musl.zip",
+        "size": 32498268,
+        "sha256": "3055ab92bbc8d5bb0d6282b661b83761d2a0de2ee37e21cf7107e25aaf2a9aad",
+        "url": "https://github.com/LFDT-Minokawa/compact/releases/download/compactc-v0.33.0-rc.2/compactc_v0.33.0-rc.2_x86_64-unknown-linux-musl.zip"
+      }
+    },
+    "node": "22.23.2",
+    "pnpm": "11.24.0",
+    "nodeImage": "docker.io/library/node@sha256:4d676821dff059fd00d277ee4261ef34ea712317fed0737c03941481b5760c96"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "0.18.0-rc.1",
+    "@midnight-ntwrk/compact-js": "2.5.5-rc.7",
+    "@midnight-ntwrk/midnight-js-contracts": "5.0.0-beta.6",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "5.0.0-beta.6",
+    "@midnight-ntwrk/midnight-js-network-id": "5.0.0-beta.6",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "5.0.0-beta.6",
+    "@midnight-ntwrk/midnight-js-protocol": "5.0.0-beta.6",
+    "@midnightntwrk/ledger-v9": "1.0.0-rc.3",
+    "@noble/curves": "2.2.0"
+  },
+  "generator": {
+    "publicSeedSha256": "d9f6eaadd24aa5991480ced52cd3b98eb4bb465e6375dd72f3ac58827f6e40e8",
+    "publicWitnessLabel": "phase3p-public-k19",
+    "preimageBytes": 707,
+    "preimageSha256": "1326dcdf0e667b33571ef2f622b7ed016a34ba93f203642fa3bc3aeca0d6aa26",
+    "keyLocation": "contract:f814c7a87a346c4dfcd1ea8dc976046714f84c25e292156269822805b3a718be/execute?vk=e24ba5cf69bd494765b5daa79da9b6da55a5385e625b060467184b156035fd3b"
+  },
+  "circuit": {
+    "id": "execute",
+    "k": 19,
+    "artifacts": [
+      {
+        "path": "keys/execute.prover",
+        "size": 1141041970,
+        "sha256": "382ae4325f239a3e4e9ac292cacbb1ed1eceec71112eefa2f7557f6ecbe6865a"
+      },
+      {
+        "path": "keys/execute.verifier",
+        "size": 3321,
+        "sha256": "e24ba5cf69bd494765b5daa79da9b6da55a5385e625b060467184b156035fd3b"
+      },
+      {
+        "path": "zkir/execute.bzkir",
+        "size": 184411,
+        "sha256": "ab697f15c424d5c5d47c3dbfe114521611bcd28e3c9655d84d388b5f0f16a06b"
+      },
+      {
+        "path": "zkir/execute.zkir",
+        "size": 605634,
+        "sha256": "bd8e655895e883a78525dce673ca398d45af84cc21e4c713860b39d5fd7774ec"
+      }
+    ],
+    "compilerManifest": {
+      "path": "compiler/contract-manifest.json",
+      "canonicalization": "forge-canonical-json-v1",
+      "canonicalSha256": "1c69c61838da1a8a864439883e3f3f708c5150e7ee2b45f8e5294c5676f38a18",
+      "rawTransportIdentityBearing": false,
+      "generationPathContract": {
+        "source": "/contracts/manager.compact",
+        "output": "/aa/contract-manager/src/managed",
+        "reason": "the compiler emits a relative sourceRoot into contract/index.js.map; these fixed non-secret container paths reproduce the reviewed semantics while canonical JSON removes member-order variance"
+      },
+      "referencedFileCount": 40,
+      "directories": [
+        "compiler",
+        "contract",
+        "zkir",
+        "keys"
+      ],
+      "semanticVersions": {
+        "manifest-version": "1",
+        "compiler-version": "0.33.0",
+        "language-version": "0.25.0",
+        "runtime-version": "0.18.0-rc.1"
+      },
+      "frozenArtifacts": [
+        {
+          "path": "keys/execute.prover",
+          "size": 1141041970,
+          "sha256": "382ae4325f239a3e4e9ac292cacbb1ed1eceec71112eefa2f7557f6ecbe6865a"
+        },
+        {
+          "path": "keys/execute.verifier",
+          "size": 3321,
+          "sha256": "e24ba5cf69bd494765b5daa79da9b6da55a5385e625b060467184b156035fd3b"
+        },
+        {
+          "path": "zkir/execute.bzkir",
+          "size": 184411,
+          "sha256": "ab697f15c424d5c5d47c3dbfe114521611bcd28e3c9655d84d388b5f0f16a06b"
+        },
+        {
+          "path": "zkir/execute.zkir",
+          "size": 605634,
+          "sha256": "bd8e655895e883a78525dce673ca398d45af84cc21e4c713860b39d5fd7774ec"
+        }
+      ]
+    }
+  },
+  "runtime": {
+    "proofServerVariant": "experimental",
+    "proofServerVersion": "9.0.0-rc.5",
+    "proofServerImage": "midnightntwrk/proof-server@sha256:4f02ca2734649eb238d13924df299b1c82bd5546ec928c5d67bdd0ce86dd0bd1",
+    "parameterContract": "the exact Q8B combined-manifest-addressed generation is mounted read-only and origin egress is blocked",
+    "requiredEndpoints": [
+      "POST /k => 19",
+      "POST /check => success",
+      "POST /prove => success"
+    ]
+  }
+}

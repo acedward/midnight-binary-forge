@@ -1,0 +1,8 @@
+{
+  "name": "@phase3p/no-package-json-export",
+  "version": "1.2.3",
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  }
+}
